@@ -15,33 +15,33 @@ The target is a working, deployed student-project MVP. A real commercial ticketi
 
 These are recommendations, not requirements already approved by the team.
 
-| Decision | Proposed MVP default | Reason / consequence |
-|---|---|---|
-| Payment environment | Provider sandbox only; visibly label test payments | Demonstrate payment integration without collecting real money |
-| Payment provider | Choose one provider with an available team sandbox account on Day 1 | Provider-neutral API contract below; do not integrate two providers |
-| Ticket quantity | One ticket per account per event | Avoid cart, guest details, group booking, and quantity refund rules |
-| Pricing | One price per event, one project currency | Free means zero; paid means a positive amount; no tier inventory |
-| Roles | ATTENDEE, ORGANIZER, ADMIN | Organizers also have all attendee capabilities |
-| Organizer access | Admin promotes an attendee to organizer | Prevent self-assigned privileges; seed an organizer for the demo |
-| Publishing | Organizers publish directly; admin can hide an event | No approval workflow in this version |
-| Venue | Physical events with venue name and address | No maps integration or virtual meeting integration |
-| Cancellation | Attendees can cancel free tickets before the event; paid ticket cancellation is unavailable | Paid refunds need a separate policy; explain this before checkout |
-| Event cancellation | Allow free-event cancellation; block paid-event cancellation while tickets or payment holds exist | Avoid collecting payments for a cancelled event without a refund workflow |
-| Event editing | Drafts editable; published content editable only before any active booking | Prevent buyers receiving a different event or price after booking |
-| Ticket delivery | In-app ticket with opaque ticket code; browser print | No email/SMS or PDF-generation service needed |
-| Check-in | Organizer enters ticket code or selects a ticket in attendee list | Camera scanning is optional after core flows work |
-| Media | Seeded/local images and a small set of selectable covers | Avoid upload storage and remote-image validation in the deadline |
+| Decision            | Proposed MVP default                                                                              | Reason / consequence                                                      |
+| ------------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| Payment environment | Provider sandbox only; visibly label test payments                                                | Demonstrate payment integration without collecting real money             |
+| Payment provider    | Choose one provider with an available team sandbox account on Day 1                               | Provider-neutral API contract below; do not integrate two providers       |
+| Ticket quantity     | One ticket per account per event                                                                  | Avoid cart, guest details, group booking, and quantity refund rules       |
+| Pricing             | One price per event, one project currency                                                         | Free means zero; paid means a positive amount; no tier inventory          |
+| Roles               | ATTENDEE, ORGANIZER, ADMIN                                                                        | Organizers also have all attendee capabilities                            |
+| Organizer access    | Admin promotes an attendee to organizer                                                           | Prevent self-assigned privileges; seed an organizer for the demo          |
+| Publishing          | Organizers publish directly; admin can hide an event                                              | No approval workflow in this version                                      |
+| Venue               | Physical events with venue name and address                                                       | No maps integration or virtual meeting integration                        |
+| Cancellation        | Attendees can cancel free tickets before the event; paid ticket cancellation is unavailable       | Paid refunds need a separate policy; explain this before checkout         |
+| Event cancellation  | Allow free-event cancellation; block paid-event cancellation while tickets or payment holds exist | Avoid collecting payments for a cancelled event without a refund workflow |
+| Event editing       | Drafts editable; published content editable only before any active booking                        | Prevent buyers receiving a different event or price after booking         |
+| Ticket delivery     | In-app ticket with opaque ticket code; browser print                                              | No email/SMS or PDF-generation service needed                             |
+| Check-in            | Organizer enters ticket code or selects a ticket in attendee list                                 | Camera scanning is optional after core flows work                         |
+| Media               | Seeded/local images and a small set of selectable covers                                          | Avoid upload storage and remote-image validation in the deadline          |
 
 If real payments or paid-event cancellation are required, revise this plan before implementation. Do not quietly enable live payment credentials.
 
 ## 2. Users and permissions
 
-| Actor | Allowed actions |
-|---|---|
-| Visitor | Browse/search published events, view details, register, log in |
-| Attendee | Visitor actions plus book, pay, view own bookings/tickets, cancel own free booking, edit own name |
+| Actor     | Allowed actions                                                                                            |
+| --------- | ---------------------------------------------------------------------------------------------------------- |
+| Visitor   | Browse/search published events, view details, register, log in                                             |
+| Attendee  | Visitor actions plus book, pay, view own bookings/tickets, cancel own free booking, edit own name          |
 | Organizer | Attendee actions plus create/edit/publish own events, view own event attendees, check in own event tickets |
-| Admin | View users/events, grant/revoke organizer access, hide/unhide events, inspect payment exceptions |
+| Admin     | View users/events, grant/revoke organizer access, hide/unhide events, inspect payment exceptions           |
 
 Public registration always creates an ATTENDEE. ADMIN comes from a seed or controlled setup, never a public form. An organizer may access only events they own. An admin does not automatically gain access to private ticket codes through public endpoints.
 
@@ -51,14 +51,14 @@ Authorization is enforced on the Express backend for every request. Hiding butto
 
 These are modules within one application, not separate services.
 
-| Module ID | Responsibility | Depends on |
-|---|---|---|
-| identity | Accounts, sessions, roles | — |
-| events | Public discovery and organizer event lifecycle | identity |
-| bookings | Capacity, free registration, paid reservations | identity, events |
-| payments | Checkout and provider-confirmed booking transitions | bookings |
-| tickets | Ticket display and organizer check-in | bookings; payments for paid tickets |
-| administration | Organizer permissions, event visibility, payment exception review | identity, events, payments |
+| Module ID      | Responsibility                                                    | Depends on                          |
+| -------------- | ----------------------------------------------------------------- | ----------------------------------- |
+| identity       | Accounts, sessions, roles                                         | —                                   |
+| events         | Public discovery and organizer event lifecycle                    | identity                            |
+| bookings       | Capacity, free registration, paid reservations                    | identity, events                    |
+| payments       | Checkout and provider-confirmed booking transitions               | bookings                            |
+| tickets        | Ticket display and organizer check-in                             | bookings; payments for paid tickets |
+| administration | Organizer permissions, event visibility, payment exception review | identity, events, payments          |
 
 Build order: identity → events → bookings → payments → tickets, with administration added as its dependencies become available. Connect frontend and backend for each flow as it is built.
 
@@ -149,14 +149,14 @@ P0 = required for the demo; P1 = only after all P0 checks pass; Later = outside 
 
 ### Optional and deferred feature inventory
 
-| Priority | Features |
-|---|---|
-| P1 | QR display using the same opaque ticket code; attendee CSV export with spreadsheet-formula escaping; event image upload if storage is already available |
-| Later — account | Email verification, password reset, social login, account deletion workflow |
-| Later — ticketing | Multiple ticket tiers, group booking, guest tickets, reserved seating, ticket transfer, waitlists, promotional codes |
-| Later — payments | Real-money launch, refund policy and self-service refunds, paid-event cancellation, organizer payouts, platform fees, tax invoices, disputes, settlement reports |
-| Later — engagement | Favorites, reviews, reminders, email/SMS tickets, calendar export, recommendations |
-| Later — organizer/admin | Staff invitations, approval workflow, recurring events, advanced analytics, audit UI, virtual events, venue maps |
+| Priority                | Features                                                                                                                                                         |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P1                      | QR display using the same opaque ticket code; attendee CSV export with spreadsheet-formula escaping; event image upload if storage is already available          |
+| Later — account         | Email verification, password reset, social login, account deletion workflow                                                                                      |
+| Later — ticketing       | Multiple ticket tiers, group booking, guest tickets, reserved seating, ticket transfer, waitlists, promotional codes                                             |
+| Later — payments        | Real-money launch, refund policy and self-service refunds, paid-event cancellation, organizer payouts, platform fees, tax invoices, disputes, settlement reports |
+| Later — engagement      | Favorites, reviews, reminders, email/SMS tickets, calendar export, recommendations                                                                               |
+| Later — organizer/admin | Staff invitations, approval workflow, recurring events, advanced analytics, audit UI, virtual events, venue maps                                                 |
 
 Do not add routes for Later features until their product rules are defined. If schedule slips, cut P1 first and reduce visual polish before weakening payment verification, authorization, or capacity integrity.
 
@@ -182,28 +182,28 @@ Log in as seeded admin → grant organizer access → inspect catalog → hide i
 
 React routes render pages. API routes below are separate backend endpoints.
 
-| Route | Access | Page / behavior |
-|---|---|---|
-| `/` | Public | Home and upcoming events |
-| `/events` | Public | Catalog; URL query parameters retain search/filter/page state |
-| `/events/:eventId` | Public | Event details and register/buy action |
-| `/register` | Public | Create attendee account |
-| `/login` | Public | Login; allowlisted internal return path |
-| `/profile` | Signed in | View account and edit name |
-| `/my-bookings` | Signed in | Own booking list |
-| `/bookings/:bookingId` | Booking owner | Booking state, checkout/resume, free cancellation |
-| `/bookings/:bookingId/ticket` | Booking owner | Confirmed ticket and print |
-| `/checkout/return` | Signed in | Provider return; use own booking reference, fetch trusted status |
-| `/organizer` | Organizer | Own event dashboard |
-| `/organizer/events/new` | Organizer | Create draft |
-| `/organizer/events/:eventId/edit` | Owning organizer | Edit draft/eligible published event |
-| `/organizer/events/:eventId` | Owning organizer | Event summary, publish/cancel/delete actions |
-| `/organizer/events/:eventId/attendees` | Owning organizer | Attendee list and manual check-in |
-| `/admin` | Admin | Overview/navigation |
-| `/admin/users` | Admin | Users and organizer permissions |
-| `/admin/events` | Admin | Event visibility management |
-| `/admin/payment-issues` | Admin | Payment exceptions and reconciliation status |
-| `*` | All | Not-found page |
+| Route                                  | Access           | Page / behavior                                                  |
+| -------------------------------------- | ---------------- | ---------------------------------------------------------------- |
+| `/`                                    | Public           | Home and upcoming events                                         |
+| `/events`                              | Public           | Catalog; URL query parameters retain search/filter/page state    |
+| `/events/:eventId`                     | Public           | Event details and register/buy action                            |
+| `/register`                            | Public           | Create attendee account                                          |
+| `/login`                               | Public           | Login; allowlisted internal return path                          |
+| `/profile`                             | Signed in        | View account and edit name                                       |
+| `/my-bookings`                         | Signed in        | Own booking list                                                 |
+| `/bookings/:bookingId`                 | Booking owner    | Booking state, checkout/resume, free cancellation                |
+| `/bookings/:bookingId/ticket`          | Booking owner    | Confirmed ticket and print                                       |
+| `/checkout/return`                     | Signed in        | Provider return; use own booking reference, fetch trusted status |
+| `/organizer`                           | Organizer        | Own event dashboard                                              |
+| `/organizer/events/new`                | Organizer        | Create draft                                                     |
+| `/organizer/events/:eventId/edit`      | Owning organizer | Edit draft/eligible published event                              |
+| `/organizer/events/:eventId`           | Owning organizer | Event summary, publish/cancel/delete actions                     |
+| `/organizer/events/:eventId/attendees` | Owning organizer | Attendee list and manual check-in                                |
+| `/admin`                               | Admin            | Overview/navigation                                              |
+| `/admin/users`                         | Admin            | Users and organizer permissions                                  |
+| `/admin/events`                        | Admin            | Event visibility management                                      |
+| `/admin/payment-issues`                | Admin            | Payment exceptions and reconciliation status                     |
+| `*`                                    | All              | Not-found page                                                   |
 
 Reuse forms/components for create/edit; do not duplicate whole pages. Login handles logged-in redirects. Every protected page must also handle an expired session, forbidden response, and missing resource. Configure the host to serve React entry HTML for client routes.
 
@@ -215,55 +215,55 @@ Base prefix: `/api`. “Owner” is checked against the authenticated user, neve
 
 ### Identity
 
-| Method | Route | Access | Input / result |
-|---|---|---|---|
-| POST | `/api/auth/register` | Public | `{name,email,password}` → attendee and session |
-| POST | `/api/auth/login` | Public | `{email,password}` → session and safe user fields |
-| POST | `/api/auth/logout` | Signed in | Invalidate session; clear cookie |
-| GET | `/api/auth/me` | Signed in | Current user ID, name, email, role |
-| PATCH | `/api/users/me` | Signed in | `{name}` → updated profile; reject role/email/password fields |
+| Method | Route                | Access    | Input / result                                                |
+| ------ | -------------------- | --------- | ------------------------------------------------------------- |
+| POST   | `/api/auth/register` | Public    | `{name,email,password}` → attendee and session                |
+| POST   | `/api/auth/login`    | Public    | `{email,password}` → session and safe user fields             |
+| POST   | `/api/auth/logout`   | Signed in | Invalidate session; clear cookie                              |
+| GET    | `/api/auth/me`       | Signed in | Current user ID, name, email, role                            |
+| PATCH  | `/api/users/me`      | Signed in | `{name}` → updated profile; reject role/email/password fields |
 
 ### Discovery and organizer events
 
-| Method | Route | Access | Input / result |
-|---|---|---|---|
-| GET | `/api/events` | Public | `q,category,city,from,to,pricing,page,limit` → upcoming visible events |
-| GET | `/api/events/:eventId` | Public | Safe event detail; no attendee details |
-| GET | `/api/organizer/events` | Organizer | Own events, pagination, aggregate booking/check-in counts |
-| POST | `/api/organizer/events` | Organizer | Event fields → new draft; owner from session |
-| GET | `/api/organizer/events/:eventId` | Owning organizer | Management detail including draft/hidden state |
-| PATCH | `/api/organizer/events/:eventId` | Owning organizer | Allowlisted editable fields; enforce booking/edit restrictions |
-| POST | `/api/organizer/events/:eventId/publish` | Owning organizer | Validate draft → published; repeated publish returns current state |
-| POST | `/api/organizer/events/:eventId/cancel` | Owning organizer | `{reason}` → cancelled; reject paid event with active holds/tickets |
-| DELETE | `/api/organizer/events/:eventId` | Owning organizer | Delete unused draft only; never delete financial/history records |
-| GET | `/api/organizer/events/:eventId/attendees` | Owning organizer | `q,checkedIn,page,limit` → minimum attendee fields |
+| Method | Route                                      | Access           | Input / result                                                         |
+| ------ | ------------------------------------------ | ---------------- | ---------------------------------------------------------------------- |
+| GET    | `/api/events`                              | Public           | `q,category,city,from,to,pricing,page,limit` → upcoming visible events |
+| GET    | `/api/events/:eventId`                     | Public           | Safe event detail; no attendee details                                 |
+| GET    | `/api/organizer/events`                    | Organizer        | Own events, pagination, aggregate booking/check-in counts              |
+| POST   | `/api/organizer/events`                    | Organizer        | Event fields → new draft; owner from session                           |
+| GET    | `/api/organizer/events/:eventId`           | Owning organizer | Management detail including draft/hidden state                         |
+| PATCH  | `/api/organizer/events/:eventId`           | Owning organizer | Allowlisted editable fields; enforce booking/edit restrictions         |
+| POST   | `/api/organizer/events/:eventId/publish`   | Owning organizer | Validate draft → published; repeated publish returns current state     |
+| POST   | `/api/organizer/events/:eventId/cancel`    | Owning organizer | `{reason}` → cancelled; reject paid event with active holds/tickets    |
+| DELETE | `/api/organizer/events/:eventId`           | Owning organizer | Delete unused draft only; never delete financial/history records       |
+| GET    | `/api/organizer/events/:eventId/attendees` | Owning organizer | `q,checkedIn,page,limit` → minimum attendee fields                     |
 
 ### Bookings, checkout, tickets
 
-| Method | Route | Access | Input / result |
-|---|---|---|---|
-| POST | `/api/events/:eventId/bookings` | Signed in | No price/role/user ID input; creates free confirmation or paid reservation; returns existing active booking on retry |
-| GET | `/api/bookings` | Signed in | Own bookings; optional status filter and pagination |
-| GET | `/api/bookings/:bookingId` | Booking owner | Booking/event snapshot and safe payment state |
-| POST | `/api/bookings/:bookingId/cancel` | Booking owner | Free confirmed booking before start/check-in only; repeated cancellation is safe |
-| POST | `/api/bookings/:bookingId/checkout` | Booking owner | Create/reuse checkout URL for open paid reservation; no client amount accepted |
-| POST | `/api/bookings/:bookingId/reconcile` | Booking owner | Rate-limited provider status retrieval; uses shared confirmation/expiry transitions |
-| GET | `/api/bookings/:bookingId/ticket` | Booking owner | Confirmed valid ticket only; other states return conflict |
-| POST | `/api/organizer/events/:eventId/check-ins` | Owning organizer | `{ticketCode}` → original/new checked-in timestamp |
-| POST | `/api/payments/webhook` | Provider signature | Raw provider payload; verify signature, amount, identifiers, and process once |
+| Method | Route                                      | Access             | Input / result                                                                                                       |
+| ------ | ------------------------------------------ | ------------------ | -------------------------------------------------------------------------------------------------------------------- |
+| POST   | `/api/events/:eventId/bookings`            | Signed in          | No price/role/user ID input; creates free confirmation or paid reservation; returns existing active booking on retry |
+| GET    | `/api/bookings`                            | Signed in          | Own bookings; optional status filter and pagination                                                                  |
+| GET    | `/api/bookings/:bookingId`                 | Booking owner      | Booking/event snapshot and safe payment state                                                                        |
+| POST   | `/api/bookings/:bookingId/cancel`          | Booking owner      | Free confirmed booking before start/check-in only; repeated cancellation is safe                                     |
+| POST   | `/api/bookings/:bookingId/checkout`        | Booking owner      | Create/reuse checkout URL for open paid reservation; no client amount accepted                                       |
+| POST   | `/api/bookings/:bookingId/reconcile`       | Booking owner      | Rate-limited provider status retrieval; uses shared confirmation/expiry transitions                                  |
+| GET    | `/api/bookings/:bookingId/ticket`          | Booking owner      | Confirmed valid ticket only; other states return conflict                                                            |
+| POST   | `/api/organizer/events/:eventId/check-ins` | Owning organizer   | `{ticketCode}` → original/new checked-in timestamp                                                                   |
+| POST   | `/api/payments/webhook`                    | Provider signature | Raw provider payload; verify signature, amount, identifiers, and process once                                        |
 
 ### Admin and operations
 
-| Method | Route | Access | Input / result |
-|---|---|---|---|
-| GET | `/api/admin/users` | Admin | `q,role,page,limit` → safe user list |
-| PATCH | `/api/admin/users/:userId/role` | Admin | `{role: ATTENDEE or ORGANIZER}`; cannot modify ADMIN |
-| GET | `/api/admin/events` | Admin | `q,status,hidden,page,limit` → moderation list |
-| PATCH | `/api/admin/events/:eventId/visibility` | Admin | `{hidden,reason}`; record actor/reason/time |
-| GET | `/api/admin/payment-issues` | Admin | Paginated unresolved provider/booking mismatches |
-| POST | `/api/admin/bookings/:bookingId/reconcile` | Admin | Reconcile exceptional payment/refund against provider; never mark paid from input |
-| GET | `/api/health` | Public | Process liveness; no secrets |
-| GET | `/api/ready` | Public | Database readiness; generic 200/503 only |
+| Method | Route                                      | Access | Input / result                                                                    |
+| ------ | ------------------------------------------ | ------ | --------------------------------------------------------------------------------- |
+| GET    | `/api/admin/users`                         | Admin  | `q,role,page,limit` → safe user list                                              |
+| PATCH  | `/api/admin/users/:userId/role`            | Admin  | `{role: ATTENDEE or ORGANIZER}`; cannot modify ADMIN                              |
+| GET    | `/api/admin/events`                        | Admin  | `q,status,hidden,page,limit` → moderation list                                    |
+| PATCH  | `/api/admin/events/:eventId/visibility`    | Admin  | `{hidden,reason}`; record actor/reason/time                                       |
+| GET    | `/api/admin/payment-issues`                | Admin  | Paginated unresolved provider/booking mismatches                                  |
+| POST   | `/api/admin/bookings/:bookingId/reconcile` | Admin  | Reconcile exceptional payment/refund against provider; never mark paid from input |
+| GET    | `/api/health`                              | Public | Process liveness; no secrets                                                      |
+| GET    | `/api/ready`                               | Public | Database readiness; generic 200/503 only                                          |
 
 P1 endpoints, only if built:
 
@@ -287,14 +287,14 @@ P1 endpoints, only if built:
 
 This is a logical design for review, not an existing Prisma schema. Keep one PostgreSQL database and one Express application.
 
-| Entity | Essential fields and constraints |
-|---|---|
-| User | ID, name, normalized unique email, passwordHash, role, createdAt, updatedAt |
-| Session | Session ID/token representation, user/session data, expiry; use the chosen session store's schema |
-| Event | ID, organizerId FK, title, description, category, coverKey, venue, address, city, timezone, startAt, endAt, registrationClosesAt, capacity, priceMinor, currency, status, hiddenAt, moderationReason, moderatedById, createdAt, updatedAt |
-| Booking | ID, userId FK, eventId FK, status, amountMinor, currency, event snapshot, holdExpiresAt, unique nullable ticketCode, checkedInAt, cancelledAt, createdAt, updatedAt |
-| Payment | ID, unique bookingId FK, provider, unique nullable providerCheckoutId, unique nullable providerPaymentId, status, amountMinor, currency, refundReference, lastErrorCode, timestamps |
-| ProcessedWebhook | Unique provider event ID plus provider, processedAt; insert atomically with corresponding state updates |
+| Entity           | Essential fields and constraints                                                                                                                                                                                                          |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| User             | ID, name, normalized unique email, passwordHash, role, createdAt, updatedAt                                                                                                                                                               |
+| Session          | Session ID/token representation, user/session data, expiry; use the chosen session store's schema                                                                                                                                         |
+| Event            | ID, organizerId FK, title, description, category, coverKey, venue, address, city, timezone, startAt, endAt, registrationClosesAt, capacity, priceMinor, currency, status, hiddenAt, moderationReason, moderatedById, createdAt, updatedAt |
+| Booking          | ID, userId FK, eventId FK, status, amountMinor, currency, event snapshot, holdExpiresAt, unique nullable ticketCode, checkedInAt, cancelledAt, createdAt, updatedAt                                                                       |
+| Payment          | ID, unique bookingId FK, provider, unique nullable providerCheckoutId, unique nullable providerPaymentId, status, amountMinor, currency, refundReference, lastErrorCode, timestamps                                                       |
+| ProcessedWebhook | Unique provider event ID plus provider, processedAt; insert atomically with corresponding state updates                                                                                                                                   |
 
 No separate Ticket table is needed for one ticket per booking. A booking's code and checkedInAt cover the MVP. If multi-ticket orders are introduced, add order/ticket separation then.
 
@@ -360,11 +360,11 @@ Provider documentation supports hosted checkout, server-driven fulfillment, sign
 
 Assign names to these roles on Day 1. Backend/frontend owners work together on complete user flows; integration is daily, not a final-day task.
 
-| Person | Primary ownership | Supporting responsibility |
-|---|---|---|
-| Person 1 — identity and database | Express setup, Prisma migrations, sessions, authorization, event-management APIs | Deployment configuration, migrations review, security checks |
-| Person 2 — attendee frontend | React setup, accounts UI, discovery, event detail, bookings/tickets UI | Responsive layout, accessibility, frontend build and routing |
-| Person 3 — bookings and payments | Booking transactions, sandbox checkout, webhook/reconciliation, ticket/check-in APIs | Capacity/payment integration tests, provider setup |
+| Person                                     | Primary ownership                                                                                     | Supporting responsibility                                          |
+| ------------------------------------------ | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| Person 1 — identity and database           | Express setup, Prisma migrations, sessions, authorization, event-management APIs                      | Deployment configuration, migrations review, security checks       |
+| Person 2 — attendee frontend               | React setup, accounts UI, discovery, event detail, bookings/tickets UI                                | Responsive layout, accessibility, frontend build and routing       |
+| Person 3 — bookings and payments           | Booking transactions, sandbox checkout, webhook/reconciliation, ticket/check-in APIs                  | Capacity/payment integration tests, provider setup                 |
 | Person 4 — organizer/admin frontend and QA | Organizer forms/dashboard, attendee/check-in UI, admin UI; small admin APIs coordinated with Person 1 | Acceptance checklist, integration testing, README/demo preparation |
 
 ### Each person's ordered checklist
@@ -409,17 +409,17 @@ Assign names to these roles on Day 1. Backend/frontend owners work together on c
 
 Day numbers are relative to team kickoff. This is a target schedule, not a guarantee; available hours and existing experience determine feasibility.
 
-| Days | Person 1 | Person 2 | Person 3 | Person 4 | Exit checkpoint |
-|---|---|---|---|---|---|
-| 1 | API/DB setup; initial schema | React/router/API client | Sandbox account and payment proof-of-connection | Screen outline, acceptance checklist | Agree defaults/provider/currency/language; all run both apps; create initial deployment |
-| 2–3 | Auth, sessions, ownership; event schema | Register/login/profile; catalog shell | Free booking transaction and race test | Organizer dashboard/form shell | Register → login → session refresh works end-to-end |
-| 4–5 | Event CRUD/publish/discovery | Catalog/detail linked to API | Free booking/cancel/ticket endpoints | Create/edit/publish linked to API | Create published event → discover → free ticket works |
-| 6–7 | Editing/cancellation constraints; admin support | Bookings/ticket/print UI | Paid reservation + checkout + signed webhook | Attendee/check-in UI | Paid sandbox success confirms exactly one booking; failure issues none |
-| 8–9 | Admin permissions/visibility review | Checkout return/resume/reconciliation states | Expiry/replay/reconciliation + check-in | Admin screens and endpoints | Both ticket types check in once; hidden event blocks new booking |
-| 10 | Backend integration/security fixes | Frontend integration/accessibility | Capacity/payment exception tests | Cross-role full-flow test | All P0 connected; feature freeze |
-| 11–12 | Migration/deployment fixes | Mobile/deep-link/session fixes | Callback and provider-recovery fixes | Regression testing and README | Deployed HTTPS flows pass; critical issues resolved |
-| 13 | Final setup verification | Demo UI cleanup | Sandbox/demo payment validation | Seed data, presentation, rehearsal | A teammate runs setup independently; full demo rehearsal |
-| 14 | Release support | Release support | Release support | Final checklist and demo | Buffer, final regression, project submission |
+| Days  | Person 1                                        | Person 2                                     | Person 3                                        | Person 4                             | Exit checkpoint                                                                         |
+| ----- | ----------------------------------------------- | -------------------------------------------- | ----------------------------------------------- | ------------------------------------ | --------------------------------------------------------------------------------------- |
+| 1     | API/DB setup; initial schema                    | React/router/API client                      | Sandbox account and payment proof-of-connection | Screen outline, acceptance checklist | Agree defaults/provider/currency/language; all run both apps; create initial deployment |
+| 2–3   | Auth, sessions, ownership; event schema         | Register/login/profile; catalog shell        | Free booking transaction and race test          | Organizer dashboard/form shell       | Register → login → session refresh works end-to-end                                     |
+| 4–5   | Event CRUD/publish/discovery                    | Catalog/detail linked to API                 | Free booking/cancel/ticket endpoints            | Create/edit/publish linked to API    | Create published event → discover → free ticket works                                   |
+| 6–7   | Editing/cancellation constraints; admin support | Bookings/ticket/print UI                     | Paid reservation + checkout + signed webhook    | Attendee/check-in UI                 | Paid sandbox success confirms exactly one booking; failure issues none                  |
+| 8–9   | Admin permissions/visibility review             | Checkout return/resume/reconciliation states | Expiry/replay/reconciliation + check-in         | Admin screens and endpoints          | Both ticket types check in once; hidden event blocks new booking                        |
+| 10    | Backend integration/security fixes              | Frontend integration/accessibility           | Capacity/payment exception tests                | Cross-role full-flow test            | All P0 connected; feature freeze                                                        |
+| 11–12 | Migration/deployment fixes                      | Mobile/deep-link/session fixes               | Callback and provider-recovery fixes            | Regression testing and README        | Deployed HTTPS flows pass; critical issues resolved                                     |
+| 13    | Final setup verification                        | Demo UI cleanup                              | Sandbox/demo payment validation                 | Seed data, presentation, rehearsal   | A teammate runs setup independently; full demo rehearsal                                |
+| 14    | Release support                                 | Release support                              | Release support                                 | Final checklist and demo             | Buffer, final regression, project submission                                            |
 
 If the team has only evenings or is new to this stack, reduce optional polish and admin overview statistics. Keep the paid-flow security and concurrency checks. If provider access is blocked, present paid checkout as incomplete rather than using a fake “payment successful” button.
 
@@ -435,25 +435,25 @@ If the team has only evenings or is new to this stack, reduce optional polish an
 
 Use the team's selected test runner; run backend integration checks against real PostgreSQL because capacity/uniqueness behavior cannot be proven with an in-memory mock. Automate critical paths; manually verify visual layout and provider dashboard outcomes.
 
-| Check | Required result |
-|---|---|
-| Register/login/logout | Unique normalized email, valid session, logout invalidation, safe errors |
-| Role escalation | Registration/profile cannot assign organizer/admin; admin-only role route rejects other actors |
-| Ownership/ID tampering | Other users' bookings and organizers' events cannot be read/changed |
-| Event validation | Invalid date ranges/price/capacity/deadline rejected; live terms locked after bookings |
-| Free booking/retry | One active booking/code; cancellation restores capacity and invalidates old code |
-| Last-seat race | For capacity 1 and two simultaneous attendees, only one active reservation/confirmation exists |
-| Paid success | Verified matching sandbox payment creates exactly one valid ticket |
-| Paid failure/return tampering | Failed payment and forged success URL never issue a ticket |
-| Webhook signature/replay | Invalid signature rejected; repeated event has no duplicate side effects |
-| Out-of-order callbacks | Old expiry/failure cannot downgrade confirmed payment; late invalid payment becomes exception |
-| Checkout timeout/retry | Provider timeout does not create duplicate charge/session or prematurely free a potentially paid seat |
-| Expiry/reconciliation | Verified unpaid expiry releases capacity; pending bookings recover when callback is delayed |
-| Check-in race | Wrong-event/unpaid/cancelled code denied; repeated/concurrent valid check-in counted once |
-| Cancellation/moderation | Free event cancellation invalidates tickets; paid active-event cancellation blocked; hiding preserves existing tickets |
-| Data exposure | Public APIs/logs do not leak passwords, cookies, ticket codes, or payment credentials |
-| Deployment | HTTPS, secure sessions, correct callback URL, client deep links, migrations, readiness, secret configuration |
-| UX | Mobile layout, keyboard forms, useful errors/empty states, printable ticket |
+| Check                         | Required result                                                                                                        |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Register/login/logout         | Unique normalized email, valid session, logout invalidation, safe errors                                               |
+| Role escalation               | Registration/profile cannot assign organizer/admin; admin-only role route rejects other actors                         |
+| Ownership/ID tampering        | Other users' bookings and organizers' events cannot be read/changed                                                    |
+| Event validation              | Invalid date ranges/price/capacity/deadline rejected; live terms locked after bookings                                 |
+| Free booking/retry            | One active booking/code; cancellation restores capacity and invalidates old code                                       |
+| Last-seat race                | For capacity 1 and two simultaneous attendees, only one active reservation/confirmation exists                         |
+| Paid success                  | Verified matching sandbox payment creates exactly one valid ticket                                                     |
+| Paid failure/return tampering | Failed payment and forged success URL never issue a ticket                                                             |
+| Webhook signature/replay      | Invalid signature rejected; repeated event has no duplicate side effects                                               |
+| Out-of-order callbacks        | Old expiry/failure cannot downgrade confirmed payment; late invalid payment becomes exception                          |
+| Checkout timeout/retry        | Provider timeout does not create duplicate charge/session or prematurely free a potentially paid seat                  |
+| Expiry/reconciliation         | Verified unpaid expiry releases capacity; pending bookings recover when callback is delayed                            |
+| Check-in race                 | Wrong-event/unpaid/cancelled code denied; repeated/concurrent valid check-in counted once                              |
+| Cancellation/moderation       | Free event cancellation invalidates tickets; paid active-event cancellation blocked; hiding preserves existing tickets |
+| Data exposure                 | Public APIs/logs do not leak passwords, cookies, ticket codes, or payment credentials                                  |
+| Deployment                    | HTTPS, secure sessions, correct callback URL, client deep links, migrations, readiness, secret configuration           |
+| UX                            | Mobile layout, keyboard forms, useful errors/empty states, printable ticket                                            |
 
 Definition of done for each feature: acceptance criteria pass; frontend and backend are integrated; error paths handled; relevant checks pass; another teammate reviews; README/API examples updated if needed. Final release requires a clean build and lint/type checks if configured, no known critical authorization/payment/capacity failures, and a rehearsed demo.
 
