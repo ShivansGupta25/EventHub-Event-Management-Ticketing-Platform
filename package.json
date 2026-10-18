@@ -23,7 +23,8 @@
     "db:deploy": "pnpm --filter server db:deploy",
     "db:generate": "pnpm --filter server db:generate",
     "db:validate": "pnpm --filter server db:validate",
-    "db:studio": "pnpm --filter server db:studio"
+    "db:studio": "pnpm --filter server db:studio",
+    "db:seed": "pnpm --filter server db:seed"
   },
   "lint-staged": {
     "*.{js,jsx,json,css,md,yml,yaml,html}": "prettier --check"

@@ -24,7 +24,10 @@ model User {
   createdAt    DateTime @default(now()) @db.Timestamptz(3)
   updatedAt    DateTime @updatedAt @db.Timestamptz(3)
 
-  refreshTokens RefreshToken[]
+  refreshTokens   RefreshToken[]
+  organizedEvents Event[]        @relation("EventOrganizer")
+  moderatedEvents Event[]        @relation("EventModerator")
+  bookings        Booking[]
 }
 
 model RefreshToken {
@@ -43,4 +46,114 @@ model RefreshToken {
   @@index([userId])
   @@index([familyId])
   @@index([expiresAt])
+}
+
+enum EventStatus {
+  DRAFT
+  PUBLISHED
+  CANCELLED
+}
+
+enum BookingStatus {
+  PENDING_PAYMENT
+  CONFIRMED
+  CANCELLED
+  EXPIRED
+  REFUND_REQUIRED
+  REFUNDED
+}
+
+enum PaymentStatus {
+  OPEN
+  PAID
+  EXPIRED
+  REFUND_REQUIRED
+  REFUNDED
+}
+
+model Event {
+  id                   String      @id @default(uuid()) @db.Uuid
+  organizerId          String      @db.Uuid
+  title                String      @db.VarChar(150)
+  description          String      @db.VarChar(5000)
+  category             String      @db.VarChar(50)
+  coverKey             String?     @db.VarChar(100)
+  venue                String      @db.VarChar(150)
+  address              String      @db.VarChar(300)
+  city                 String      @db.VarChar(100)
+  timezone             String      @db.VarChar(64) // IANA, e.g. Asia/Kolkata
+  startAt              DateTime    @db.Timestamptz(3)
+  endAt                DateTime    @db.Timestamptz(3)
+  registrationClosesAt DateTime    @db.Timestamptz(3)
+  capacity             Int
+  priceMinor           Int // 0 = free; integer minor units (paise/cents)
+  currency             String      @db.Char(3)
+  status               EventStatus @default(DRAFT)
+  cancelledAt          DateTime?   @db.Timestamptz(3)
+  cancelReason         String?     @db.VarChar(500)
+  hiddenAt             DateTime?   @db.Timestamptz(3)
+  moderationReason     String?     @db.VarChar(500)
+  moderatedById        String?     @db.Uuid
+  createdAt            DateTime    @default(now()) @db.Timestamptz(3)
+  updatedAt            DateTime    @updatedAt @db.Timestamptz(3)
+
+  organizer   User      @relation("EventOrganizer", fields: [organizerId], references: [id], onDelete: Restrict)
+  moderatedBy User?     @relation("EventModerator", fields: [moderatedById], references: [id], onDelete: SetNull)
+  bookings    Booking[]
+
+  @@index([status, startAt])
+  @@index([organizerId, createdAt])
+}
+
+// One active (PENDING_PAYMENT/CONFIRMED) booking per (userId, eventId) is enforced by a
+// partial unique index created in raw SQL in the migration; Prisma cannot express it.
+model Booking {
+  id            String        @id @default(uuid()) @db.Uuid
+  userId        String        @db.Uuid
+  eventId       String        @db.Uuid
+  status        BookingStatus
+  amountMinor   Int
+  currency      String        @db.Char(3)
+  eventSnapshot Json // title/venue/startAt/price at booking time
+  holdExpiresAt DateTime?     @db.Timestamptz(3)
+  ticketCode    String?       @unique @db.VarChar(64)
+  checkedInAt   DateTime?     @db.Timestamptz(3)
+  cancelledAt   DateTime?     @db.Timestamptz(3)
+  createdAt     DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime      @updatedAt @db.Timestamptz(3)
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Restrict)
+  event   Event    @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  payment Payment?
+
+  @@index([userId, createdAt])
+  @@index([eventId, status])
+}
+
+model Payment {
+  id                 String        @id @default(uuid()) @db.Uuid
+  bookingId          String        @unique @db.Uuid
+  provider           String        @db.VarChar(30)
+  providerCheckoutId String?       @unique
+  providerPaymentId  String?       @unique
+  status             PaymentStatus @default(OPEN)
+  amountMinor        Int
+  currency           String        @db.Char(3)
+  refundReference    String?
+  lastErrorCode      String?       @db.VarChar(100)
+  createdAt          DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime      @updatedAt @db.Timestamptz(3)
+
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+
+  @@index([status])
+}
+
+// Insert in the same transaction as the booking/payment update it caused.
+model ProcessedWebhook {
+  provider        String   @db.VarChar(30)
+  providerEventId String
+  processedAt     DateTime @default(now()) @db.Timestamptz(3)
+
+  @@id([provider, providerEventId])
 }
