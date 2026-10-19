@@ -1,10 +1,8 @@
 import { prisma } from '../db.js';
 import { HttpError } from '../lib/errors.js';
+import { parsePagination } from '../lib/pagination.js';
 import { ACTIVE_STATUSES } from './booking.service.js';
 
-const DEFAULT_LIMIT = 20;
-const MAX_LIMIT = 100;
-const MAX_PAGE = 100000;
 const MAX_SEARCH_LENGTH = 100;
 
 function parseDate(value, field) {
@@ -21,25 +19,6 @@ function parseDate(value, field) {
   }
 
   return date;
-}
-
-function parsePositiveInteger(value, field, defaultValue, maxValue) {
-  if (value === undefined) return defaultValue;
-
-  if (
-    typeof value !== 'string' ||
-    !/^\d+$/.test(value) ||
-    Number(value) < 1 ||
-    Number(value) > maxValue
-  ) {
-    throw new HttpError(
-      400,
-      'INVALID_QUERY',
-      `The ${field} parameter must be between 1 and ${maxValue}.`
-    );
-  }
-
-  return Number(value);
 }
 
 function getPublicEventSelect() {
@@ -137,15 +116,7 @@ export async function listPublicEvents(query) {
     );
   }
 
-  // Validate pagination.
-  const page = parsePositiveInteger(query.page, 'page', 1, MAX_PAGE);
-
-  const limit = parsePositiveInteger(
-    query.limit,
-    'limit',
-    DEFAULT_LIMIT,
-    MAX_LIMIT
-  );
+  const { page, limit, skip } = parsePagination(query);
 
   const fromDate = parseDate(from, 'from');
   const toDate = parseDate(to, 'to');
@@ -208,7 +179,7 @@ export async function listPublicEvents(query) {
       where,
       select: getPublicEventSelect(),
       orderBy: [{ startAt: 'asc' }, { id: 'asc' }],
-      skip: (page - 1) * limit,
+      skip,
       take: limit,
     }),
   ]);

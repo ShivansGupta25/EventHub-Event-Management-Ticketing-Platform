@@ -31,7 +31,7 @@ It never creates migrations or resets the database. If a setup step fails,
 the apps are not launched.
 
 - Frontend: <http://localhost:5173> (Vite reports another port if occupied).
-- Backend: <http://localhost:8000> by default; routes are still being implemented.
+- Backend: <http://localhost:8000> by default; authenticated users can book a free ticket with `POST /api/events/:id/bookings`.
 - PostgreSQL: `localhost:5433`, database `event_management`.
 
 Ctrl+C stops the frontend and backend. PostgreSQL remains running;
