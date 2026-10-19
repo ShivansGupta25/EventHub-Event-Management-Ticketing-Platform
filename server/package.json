@@ -16,7 +16,7 @@
     "db:studio": "prisma studio",
     "db:generate": "prisma generate",
     "db:validate": "prisma validate",
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "node --test",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "db:seed": "node prisma/seed.js"
