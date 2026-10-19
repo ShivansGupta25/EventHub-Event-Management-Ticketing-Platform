@@ -2,6 +2,7 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import crypto from 'node:crypto';
 import { prisma } from '../db.js';
+import { HttpError } from '../lib/errors.js';
 
 const generateAccessToken = (user) =>
   jwt.sign({ id: user.id, role: user.role }, process.env.JWT_ACCESS_SECRET, {
@@ -43,17 +44,33 @@ async function createSession(user) {
 }
 
 export async function registerUser({ name, email, password } = {}) {
+  const fields = {};
+
+  if (typeof name !== 'string' || !name.trim()) {
+    fields.name = 'Name is required.';
+  } else if (name.trim().length > 100) {
+    fields.name = 'Name must be at most 100 characters.';
+  }
+
+  if (typeof email !== 'string' || !email.trim()) {
+    fields.email = 'Email is required.';
+  }
+
   if (
-    typeof name !== 'string' ||
-    !name.trim() ||
-    typeof email !== 'string' ||
-    !email.trim() ||
     typeof password !== 'string' ||
-    !password
+    password.length < 8 ||
+    password.length > 72
   ) {
-    const error = new Error('All fields are required');
-    error.statusCode = 400;
-    throw error;
+    fields.password = 'Password must be 8–72 characters.';
+  }
+
+  if (Object.keys(fields).length > 0) {
+    throw new HttpError(
+      400,
+      'VALIDATION_ERROR',
+      'Invalid registration details.',
+      fields
+    );
   }
 
   const normalizedEmail = email.trim().toLowerCase();
@@ -63,9 +80,7 @@ export async function registerUser({ name, email, password } = {}) {
   });
 
   if (existingUser) {
-    const error = new Error('Email already registered');
-    error.statusCode = 409;
-    throw error;
+    throw new HttpError(409, 'EMAIL_TAKEN', 'Email is already registered.');
   }
 
   const passwordHash = await bcrypt.hash(password, 10);
@@ -81,9 +96,8 @@ export async function registerUser({ name, email, password } = {}) {
       },
     });
   } catch (error) {
-    // Handle duplicate email if concurrent requests race.
     if (error.code === 'P2002') {
-      error.statusCode = 409;
+      throw new HttpError(409, 'EMAIL_TAKEN', 'Email is already registered.');
     }
     throw error;
   }
@@ -92,15 +106,23 @@ export async function registerUser({ name, email, password } = {}) {
 }
 
 export async function loginUser({ email, password } = {}) {
-  if (
-    typeof email !== 'string' ||
-    !email.trim() ||
-    typeof password !== 'string' ||
-    !password
-  ) {
-    const error = new Error('Email and password are required');
-    error.statusCode = 400;
-    throw error;
+  const fields = {};
+
+  if (typeof email !== 'string' || !email.trim()) {
+    fields.email = 'Email is required.';
+  }
+
+  if (typeof password !== 'string' || !password) {
+    fields.password = 'Password is required.';
+  }
+
+  if (Object.keys(fields).length > 0) {
+    throw new HttpError(
+      400,
+      'VALIDATION_ERROR',
+      'Invalid login details.',
+      fields
+    );
   }
 
   const user = await prisma.user.findUnique({
@@ -108,9 +130,11 @@ export async function loginUser({ email, password } = {}) {
   });
 
   if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
-    const error = new Error('Invalid email or password');
-    error.statusCode = 401;
-    throw error;
+    throw new HttpError(
+      401,
+      'INVALID_CREDENTIALS',
+      'Invalid email or password.'
+    );
   }
 
   return createSession(user);

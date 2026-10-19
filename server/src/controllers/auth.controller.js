@@ -1,14 +1,22 @@
+import crypto from 'node:crypto';
 import {
   registerUser,
   loginUser,
   refreshSession,
 } from '../services/auth.service.js';
+import { prisma } from '../db.js';
+import { HttpError } from '../lib/errors.js';
 
 const cookieOptions = {
   httpOnly: true,
   secure: process.env.NODE_ENV === 'production',
   sameSite: 'lax',
   path: '/',
+};
+
+const refreshCookieOptions = {
+  ...cookieOptions,
+  path: '/api/auth',
 };
 
 function sendSession(res, session, status = 200) {
@@ -18,62 +26,61 @@ function sendSession(res, session, status = 200) {
   });
 
   res.cookie('refreshToken', session.refreshToken, {
-    ...cookieOptions,
-    path: '/api/auth',
+    ...refreshCookieOptions,
     maxAge: 7 * 24 * 60 * 60 * 1000,
   });
 
   return res.status(status).json({ data: session.user });
 }
 
-function handleError(res, error) {
-  const status =
-    error.code === 'P2002' || error.statusCode === 409
-      ? 409
-      : [400, 401].includes(error.statusCode)
-        ? error.statusCode
-        : 500;
-
-  return res.status(status).json({
-    error: {
-      message:
-        status === 500
-          ? 'Internal server error.'
-          : status === 409
-            ? 'Email is already registered.'
-            : error.message,
-    },
-  });
+function clearSessionCookies(res) {
+  res.clearCookie('accessToken', cookieOptions);
+  res.clearCookie('refreshToken', refreshCookieOptions);
 }
 
 export async function register(req, res) {
-  try {
-    return sendSession(res, await registerUser(req.body ?? {}), 201);
-  } catch (error) {
-    return handleError(res, error);
-  }
+  return sendSession(res, await registerUser(req.body ?? {}), 201);
 }
 
 export async function login(req, res) {
-  try {
-    return sendSession(res, await loginUser(req.body ?? {}));
-  } catch (error) {
-    return handleError(res, error);
-  }
+  return sendSession(res, await loginUser(req.body ?? {}));
 }
 
 export async function refresh(req, res) {
   try {
     return sendSession(res, await refreshSession(req.cookies?.refreshToken));
   } catch (error) {
-    if (error.statusCode === 401) {
-      res.clearCookie('accessToken', cookieOptions);
-      res.clearCookie('refreshToken', {
-        ...cookieOptions,
-        path: '/api/auth',
-      });
+    if (error.statusCode === 401 || error.status === 401) {
+      clearSessionCookies(res);
     }
-
-    return handleError(res, error);
+    throw error;
   }
+}
+
+export function me(req, res) {
+  return res.status(200).json({ data: req.user });
+}
+
+export async function logout(req, res) {
+  const token = req.cookies?.refreshToken;
+
+  if (token) {
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+
+    await prisma.refreshToken.updateMany({
+      where: {
+        tokenHash,
+        revokedAt: null,
+      },
+      data: {
+        revokedAt: new Date(),
+      },
+    });
+  }
+
+  clearSessionCookies(res);
+
+  return res
+    .status(200)
+    .json({ data: { message: 'Logged out successfully.' } });
 }
