@@ -26,6 +26,7 @@ app.use(express.static('public'));
 app.use(cookieParser());
 
 app.get('/api/health', (req, res) => res.json({ data: { status: 'ok' } }));
+
 app.get('/api/ready', async (req, res) => {
   try {
     await prisma.$queryRaw`SELECT 1`;
@@ -46,6 +47,7 @@ app.use('/api', bookingRoutes);
 app.use('/api', () => {
   throw new HttpError(404, 'NOT_FOUND', 'Route not found.');
 });
+
 app.use(errorHandler);
 
 export default app;
