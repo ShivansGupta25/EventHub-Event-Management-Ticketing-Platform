@@ -1,88 +1,79 @@
+import crypto from 'node:crypto';
 import { prisma } from '../db.js';
+import { HttpError } from '../lib/errors.js';
 
-function createBookingError(statusCode, message) {
-  const error = new Error(message);
-  error.statusCode = statusCode;
-  return error;
-}
-
-async function findTicket(eventId, userId) {
-  return prisma.ticket.findUnique({
-    where: {
-      eventId_userId: { eventId, userId },
-    },
-  });
-}
+// Bookings that hold a seat. Pending payments keep their seat until the provider confirms expiry.
+export const ACTIVE_STATUSES = ['PENDING_PAYMENT', 'CONFIRMED'];
 
 export async function createFreeBooking(eventId, userId) {
-  const existingTicket = await findTicket(eventId, userId);
+  return prisma.$transaction(async (tx) => {
+    // Lock the event row so concurrent bookings for this event run one at a time.
+    const [locked] = await tx.$queryRaw`
+      SELECT "id" FROM "Event" WHERE "id" = ${eventId}::uuid FOR UPDATE
+    `;
+    const event =
+      locked && (await tx.event.findUnique({ where: { id: eventId } }));
 
-  if (existingTicket) {
-    return { ticket: existingTicket, created: false };
-  }
+    if (!event || event.status === 'DRAFT' || event.hiddenAt) {
+      throw new HttpError(
+        404,
+        'EVENT_UNAVAILABLE',
+        'Event not found or unavailable.'
+      );
+    }
+    if (event.status === 'CANCELLED') {
+      throw new HttpError(
+        409,
+        'EVENT_UNAVAILABLE',
+        'This event has been cancelled.'
+      );
+    }
 
-  try {
-    return await prisma.$transaction(async (transaction) => {
-      const updatedEvents = await transaction.$queryRaw`
-        UPDATE "Event"
-        SET "bookedCount" = "bookedCount" + 1
-        WHERE "id" = ${eventId}::uuid
-          AND "registrationOpen" = TRUE
-          AND "bookedCount" < "capacity"
-        RETURNING "id"
-      `;
-
-      if (updatedEvents.length === 0) {
-        const ticket = await transaction.ticket.findUnique({
-          where: {
-            eventId_userId: { eventId, userId },
-          },
-        });
-
-        if (ticket) {
-          return { ticket, created: false };
-        }
-
-        const event = await transaction.event.findUnique({
-          where: { id: eventId },
-          select: {
-            registrationOpen: true,
-            bookedCount: true,
-            capacity: true,
-          },
-        });
-
-        if (!event) {
-          throw createBookingError(404, 'Event not found.');
-        }
-
-        if (!event.registrationOpen) {
-          throw createBookingError(
-            409,
-            'Registration for this event is closed.'
-          );
-        }
-
-        throw createBookingError(409, 'This event has no remaining seats.');
-      }
-
-      const ticket = await transaction.ticket.create({
-        data: { eventId, userId },
-      });
-
-      return { ticket, created: true };
+    const existing = await tx.booking.findFirst({
+      where: { eventId, userId, status: { in: ACTIVE_STATUSES } },
     });
-  } catch (error) {
-    if (error.code !== 'P2002') {
-      throw error;
+    if (existing) return { booking: existing, created: false };
+
+    if (event.registrationClosesAt <= new Date()) {
+      throw new HttpError(
+        409,
+        'REGISTRATION_CLOSED',
+        'Registration for this event is closed.'
+      );
+    }
+    if (event.priceMinor > 0) {
+      throw new HttpError(
+        409,
+        'PAYMENT_REQUIRED',
+        'Paid checkout is not available yet.'
+      );
     }
 
-    const ticket = await findTicket(eventId, userId);
-
-    if (!ticket) {
-      throw error;
+    const occupied = await tx.booking.count({
+      where: { eventId, status: { in: ACTIVE_STATUSES } },
+    });
+    if (occupied >= event.capacity) {
+      throw new HttpError(409, 'EVENT_SOLD_OUT', 'This event is sold out.');
     }
 
-    return { ticket, created: false };
-  }
+    const booking = await tx.booking.create({
+      data: {
+        userId,
+        eventId,
+        status: 'CONFIRMED',
+        amountMinor: 0,
+        currency: event.currency,
+        eventSnapshot: {
+          title: event.title,
+          venue: event.venue,
+          city: event.city,
+          startAt: event.startAt,
+          endAt: event.endAt,
+          timezone: event.timezone,
+        },
+        ticketCode: crypto.randomBytes(16).toString('base64url'),
+      },
+    });
+    return { booking, created: true };
+  });
 }

@@ -1,5 +1,6 @@
 import { prisma } from '../db.js';
 import { HttpError } from '../lib/errors.js';
+import { ACTIVE_STATUSES } from './booking.service.js';
 
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 100;
@@ -69,7 +70,7 @@ function getPublicEventSelect() {
   };
 }
 
-async function addAvailability(events, now = new Date()) {
+async function addAvailability(events) {
   if (events.length === 0) return events;
 
   const eventIds = events.map((event) => event.id);
@@ -78,13 +79,7 @@ async function addAvailability(events, now = new Date()) {
     by: ['eventId'],
     where: {
       eventId: { in: eventIds },
-      OR: [
-        { status: 'CONFIRMED' },
-        {
-          status: 'PENDING_PAYMENT',
-          holdExpiresAt: { gt: now },
-        },
-      ],
+      status: { in: ACTIVE_STATUSES },
     },
     _count: {
       _all: true,
@@ -219,7 +214,7 @@ export async function listPublicEvents(query) {
   ]);
 
   return {
-    data: await addAvailability(events, now),
+    data: await addAvailability(events),
     pagination: {
       page,
       limit,
