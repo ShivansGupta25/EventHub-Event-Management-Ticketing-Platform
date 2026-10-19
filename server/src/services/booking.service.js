@@ -3,7 +3,9 @@ import { prisma } from '../db.js';
 import { HttpError } from '../lib/errors.js';
 import { parsePagination } from '../lib/pagination.js';
 
-const activeStatuses = ['PENDING_PAYMENT', 'CONFIRMED'];
+// Pending payments hold seats until their status is changed on expiry.
+export const ACTIVE_STATUSES = ['PENDING_PAYMENT', 'CONFIRMED'];
+
 const bookingSelect = {
   id: true,
   eventId: true,
@@ -30,7 +32,7 @@ const bookingSelect = {
   },
 };
 
-function ticketCode() {
+function createTicketCode() {
   return crypto.randomBytes(16).toString('base64url');
 }
 
@@ -39,7 +41,7 @@ function findActiveBooking(client, eventId, userId) {
     where: {
       eventId,
       userId,
-      status: { in: activeStatuses },
+      status: { in: ACTIVE_STATUSES },
     },
     select: bookingSelect,
   });
@@ -53,8 +55,8 @@ export async function createFreeBooking(eventId, userId) {
   }
 
   try {
-    return await prisma.$transaction(async (transaction) => {
-      const lockedEvents = await transaction.$queryRaw`
+    return await prisma.$transaction(async (tx) => {
+      const lockedEvents = await tx.$queryRaw`
         SELECT "id"
         FROM "Event"
         WHERE "id" = ${eventId}::uuid
@@ -62,17 +64,34 @@ export async function createFreeBooking(eventId, userId) {
       `;
 
       if (lockedEvents.length === 0) {
-        throw new HttpError(404, 'EVENT_UNAVAILABLE', 'Event not found.');
+        throw new HttpError(
+          404,
+          'EVENT_UNAVAILABLE',
+          'Event not found or unavailable.'
+        );
       }
 
-      const event = await transaction.event.findUnique({
+      const event = await tx.event.findUnique({
         where: { id: eventId },
       });
-      const currentBooking = await findActiveBooking(
-        transaction,
-        eventId,
-        userId
-      );
+
+      if (!event || event.status === 'DRAFT' || event.hiddenAt) {
+        throw new HttpError(
+          404,
+          'EVENT_UNAVAILABLE',
+          'Event not found or unavailable.'
+        );
+      }
+
+      if (event.status === 'CANCELLED') {
+        throw new HttpError(
+          409,
+          'EVENT_UNAVAILABLE',
+          'This event has been cancelled.'
+        );
+      }
+
+      const currentBooking = await findActiveBooking(tx, eventId, userId);
 
       if (currentBooking) {
         return { booking: currentBooking, created: false };
@@ -80,12 +99,7 @@ export async function createFreeBooking(eventId, userId) {
 
       const now = new Date();
 
-      if (
-        event.status !== 'PUBLISHED' ||
-        event.hiddenAt ||
-        event.registrationClosesAt <= now ||
-        event.startAt <= now
-      ) {
+      if (event.registrationClosesAt <= now || event.startAt <= now) {
         throw new HttpError(
           409,
           'REGISTRATION_CLOSED',
@@ -96,33 +110,23 @@ export async function createFreeBooking(eventId, userId) {
       if (event.priceMinor !== 0) {
         throw new HttpError(
           409,
-          'PAID_BOOKING_REQUIRED',
-          'This event requires a paid booking.'
+          'PAYMENT_REQUIRED',
+          'Paid checkout is not available yet.'
         );
       }
 
-      const activeBookingCount = await transaction.booking.count({
+      const activeBookingCount = await tx.booking.count({
         where: {
           eventId,
-          OR: [
-            { status: 'CONFIRMED' },
-            {
-              status: 'PENDING_PAYMENT',
-              holdExpiresAt: { gt: now },
-            },
-          ],
+          status: { in: ACTIVE_STATUSES },
         },
       });
 
       if (activeBookingCount >= event.capacity) {
-        throw new HttpError(
-          409,
-          'EVENT_FULL',
-          'This event has no remaining seats.'
-        );
+        throw new HttpError(409, 'EVENT_SOLD_OUT', 'This event is sold out.');
       }
 
-      const booking = await transaction.booking.create({
+      const booking = await tx.booking.create({
         data: {
           userId,
           eventId,
@@ -140,7 +144,7 @@ export async function createFreeBooking(eventId, userId) {
             priceMinor: event.priceMinor,
             currency: event.currency,
           },
-          ticketCode: ticketCode(),
+          ticketCode: createTicketCode(),
         },
         select: bookingSelect,
       });
@@ -227,8 +231,8 @@ export async function cancelUserBooking(bookingId, userId) {
     throw new HttpError(404, 'BOOKING_NOT_FOUND', 'Booking not found.');
   }
 
-  return prisma.$transaction(async (transaction) => {
-    const lockedEvents = await transaction.$queryRaw`
+  return prisma.$transaction(async (tx) => {
+    const lockedEvents = await tx.$queryRaw`
       SELECT "id"
       FROM "Event"
       WHERE "id" = ${bookingReference.eventId}::uuid
@@ -239,7 +243,7 @@ export async function cancelUserBooking(bookingId, userId) {
       throw new HttpError(404, 'BOOKING_NOT_FOUND', 'Booking not found.');
     }
 
-    const booking = await transaction.booking.findFirst({
+    const booking = await tx.booking.findFirst({
       where: { id: bookingId, userId },
       select: {
         id: true,
@@ -248,7 +252,6 @@ export async function cancelUserBooking(bookingId, userId) {
         amountMinor: true,
         checkedInAt: true,
         cancelledAt: true,
-        ticketCode: true,
       },
     });
 
@@ -257,7 +260,7 @@ export async function cancelUserBooking(bookingId, userId) {
     }
 
     if (booking.status === 'CANCELLED') {
-      return transaction.booking.findFirst({
+      return tx.booking.findFirst({
         where: { id: bookingId, userId },
         select: bookingSelect,
       });
@@ -271,7 +274,7 @@ export async function cancelUserBooking(bookingId, userId) {
       );
     }
 
-    const event = await transaction.event.findUnique({
+    const event = await tx.event.findUnique({
       where: { id: booking.eventId },
       select: { startAt: true },
     });
@@ -284,7 +287,7 @@ export async function cancelUserBooking(bookingId, userId) {
       );
     }
 
-    return transaction.booking.update({
+    return tx.booking.update({
       where: { id: booking.id, userId },
       data: {
         status: 'CANCELLED',

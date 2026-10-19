@@ -8,24 +8,23 @@ import {
 import { HttpError } from '../lib/errors.js';
 
 const uuidPattern =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export async function createBooking(req, res) {
-  const { id: eventId } = req.params;
-
+  const { eventId } = req.params;
   if (!uuidPattern.test(eventId)) {
     throw new HttpError(
-      400,
-      'INVALID_EVENT_ID',
-      'A valid event ID is required.'
+      404,
+      'EVENT_UNAVAILABLE',
+      'Event not found or unavailable.'
     );
   }
 
-  const result = await createFreeBooking(eventId, req.user.id);
-
-  return res.status(result.created ? 201 : 200).json({
+  const { booking, created } = await createFreeBooking(eventId, req.user.id);
+  return res.status(created ? 201 : 200).json({
     success: true,
-    ticket: result.booking,
+    ticket: booking,
+    data: booking,
   });
 }
 
