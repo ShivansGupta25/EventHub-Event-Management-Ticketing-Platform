@@ -23,30 +23,32 @@ function sendSession(res, session, status = 200) {
     maxAge: 7 * 24 * 60 * 60 * 1000,
   });
 
-  return res.status(status).json({
-    success: true,
-    user: session.user,
-  });
+  return res.status(status).json({ data: session.user });
 }
 
 function handleError(res, error) {
-  if (error.code === 'P2002') {
-    return res.status(409).json({
-      success: false,
-      message: 'Email is already registered.',
-    });
-  }
+  const status =
+    error.code === 'P2002' || error.statusCode === 409
+      ? 409
+      : [400, 401].includes(error.statusCode)
+        ? error.statusCode
+        : 500;
 
-  return res.status(error.statusCode || 500).json({
-    success: false,
-    message: error.statusCode ? error.message : 'Internal server error.',
+  return res.status(status).json({
+    error: {
+      message:
+        status === 500
+          ? 'Internal server error.'
+          : status === 409
+            ? 'Email is already registered.'
+            : error.message,
+    },
   });
 }
 
 export async function register(req, res) {
   try {
-    const session = await registerUser(req.body ?? {});
-    return sendSession(res, session, 201);
+    return sendSession(res, await registerUser(req.body ?? {}), 201);
   } catch (error) {
     return handleError(res, error);
   }
@@ -54,8 +56,7 @@ export async function register(req, res) {
 
 export async function login(req, res) {
   try {
-    const session = await loginUser(req.body ?? {});
-    return sendSession(res, session);
+    return sendSession(res, await loginUser(req.body ?? {}));
   } catch (error) {
     return handleError(res, error);
   }
@@ -63,8 +64,7 @@ export async function login(req, res) {
 
 export async function refresh(req, res) {
   try {
-    const session = await refreshSession(req.cookies?.refreshToken);
-    return sendSession(res, session);
+    return sendSession(res, await refreshSession(req.cookies?.refreshToken));
   } catch (error) {
     if (error.statusCode === 401) {
       res.clearCookie('accessToken', cookieOptions);

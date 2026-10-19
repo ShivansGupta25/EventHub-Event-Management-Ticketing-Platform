@@ -42,33 +42,67 @@ async function createSession(user) {
   };
 }
 
-export async function registerUser({ name, email, password }) {
-  if (!name || !email || !password) {
-    throw new Error('All fields are required');
+export async function registerUser({ name, email, password } = {}) {
+  if (
+    typeof name !== 'string' ||
+    !name.trim() ||
+    typeof email !== 'string' ||
+    !email.trim() ||
+    typeof password !== 'string' ||
+    !password
+  ) {
+    const error = new Error('All fields are required');
+    error.statusCode = 400;
+    throw error;
   }
 
+  const normalizedEmail = email.trim().toLowerCase();
+
   const existingUser = await prisma.user.findUnique({
-    where: { email: email.trim().toLowerCase() },
+    where: { email: normalizedEmail },
   });
 
   if (existingUser) {
-    throw new Error('Email already registered');
+    const error = new Error('Email already registered');
+    error.statusCode = 409;
+    throw error;
   }
 
   const passwordHash = await bcrypt.hash(password, 10);
 
-  const user = await prisma.user.create({
-    data: {
-      name: name.trim(),
-      email: email.trim().toLowerCase(),
-      passwordHash,
-    },
-  });
+  let user;
+
+  try {
+    user = await prisma.user.create({
+      data: {
+        name: name.trim(),
+        email: normalizedEmail,
+        passwordHash,
+      },
+    });
+  } catch (error) {
+    // Handle duplicate email if concurrent requests race.
+    if (error.code === 'P2002') {
+      error.statusCode = 409;
+    }
+    throw error;
+  }
 
   return createSession(user);
 }
 
-export async function loginUser({ email, password }) {
+export async function loginUser({ email, password } = {}) {
+  if (
+    typeof email !== 'string' ||
+    !email.trim() ||
+    typeof password !== 'string' ||
+    !password
+  ) {
+    const error = new Error('Email and password are required');
+    error.statusCode = 400;
+    throw error;
+  }
+
   const user = await prisma.user.findUnique({
     where: { email: email.trim().toLowerCase() },
   });

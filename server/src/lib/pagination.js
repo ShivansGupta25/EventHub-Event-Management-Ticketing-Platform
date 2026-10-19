@@ -23,7 +23,7 @@ function parsePositiveInteger(value, field, defaultValue, maxValue) {
   return Number(value);
 }
 
-export function parsePagination(query) {
+export function parsePagination(query = {}) {
   const page = parsePositiveInteger(query.page, 'page', 1, MAX_PAGE);
   const limit = parsePositiveInteger(
     query.limit,
