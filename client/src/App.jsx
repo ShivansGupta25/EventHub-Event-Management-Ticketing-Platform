@@ -2,6 +2,7 @@ import { Route, Routes } from 'react-router';
 import Landing from './pages/Landing.jsx';
 import Login from './pages/Login.jsx';
 import Signup from './pages/Signup.jsx';
+import Profile from './pages/Profile.jsx';
 import RequireAuth from './auth/RequireAuth.jsx';
 
 function Placeholder({ name }) {
@@ -19,7 +20,7 @@ function App() {
         path="/profile"
         element={
           <RequireAuth>
-            <Placeholder name="Profile" />
+            <Profile />
           </RequireAuth>
         }
       />

@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { HttpError } from '../lib/errors.js';
 import {
   registerUser,
   loginUser,
@@ -80,4 +81,33 @@ export async function logout(req, res) {
 
   clearSessionCookies(res);
   return res.status(204).end();
+}
+
+export async function updateMe(req, res) {
+  const name = req.body?.name;
+
+  if (typeof name !== 'string' || !name.trim()) {
+    throw new HttpError(400, 'VALIDATION_ERROR', 'Please enter your name.', {
+      name: 'Name is required.',
+    });
+  }
+
+  const trimmedName = name.trim();
+
+  if (trimmedName.length > 100) {
+    throw new HttpError(
+      400,
+      'VALIDATION_ERROR',
+      'Name must be 100 characters or fewer.',
+      { name: 'Name must be 100 characters or fewer.' }
+    );
+  }
+
+  const user = await prisma.user.update({
+    where: { id: req.user.id },
+    data: { name: trimmedName },
+    select: { id: true, name: true, email: true, role: true },
+  });
+
+  return res.status(200).json({ data: user });
 }
