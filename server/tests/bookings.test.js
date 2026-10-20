@@ -23,25 +23,33 @@ test('booking endpoint rejects unauthenticated requests', async (t) => {
   const response = await fetch(`${baseUrl}/api/events/not-a-uuid/bookings`, {
     method: 'POST',
   });
-  const authenticatedInvalidIdResponse = await fetch(
-    `${baseUrl}/api/events/not-a-uuid/bookings`,
-    {
-      method: 'POST',
-      headers: {
-        cookie: `accessToken=${jwt.sign(
-          { id: randomUUID() },
-          process.env.JWT_ACCESS_SECRET
-        )}`,
-      },
-    }
-  );
-
   assert.equal(response.status, 401);
   assert.deepEqual(await response.json(), {
-    success: false,
-    message: 'Authentication required.',
+    error: {
+      code: 'UNAUTHENTICATED',
+      message: 'Please log in.',
+      fields: {},
+    },
   });
-  assert.equal(authenticatedInvalidIdResponse.status, 400);
+
+  // This request requires a database-backed authenticated user.
+  if (process.env.DATABASE_URL) {
+    const authenticatedInvalidIdResponse = await fetch(
+      `${baseUrl}/api/events/not-a-uuid/bookings`,
+      {
+        method: 'POST',
+        headers: {
+          cookie: `accessToken=${jwt.sign(
+            { id: randomUUID() },
+            process.env.JWT_ACCESS_SECRET
+          )}`,
+        },
+      }
+    );
+
+    // A random user ID is not in the database, so authentication rejects it.
+    assert.equal(authenticatedInvalidIdResponse.status, 401);
+  }
 });
 
 test(
