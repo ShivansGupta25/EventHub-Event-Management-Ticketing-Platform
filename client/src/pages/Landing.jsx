@@ -1,4 +1,6 @@
-import { Link } from 'react-router';
+import { Link, useNavigate } from 'react-router';
+import { api } from '../lib/api.js';
+import { useAuth } from '../auth/useAuth.js';
 import {
   Search,
   Grid,
@@ -213,6 +215,21 @@ function EventSection({ title, events }) {
 }
 
 const Landing = () => {
+  const { user, setUser } = useAuth();
+  const navigate = useNavigate();
+  const [logoutError, setLogoutError] = useState('');
+
+  async function handleLogout() {
+    setLogoutError('');
+
+    try {
+      await api('/auth/logout', { method: 'POST' });
+      setUser(null);
+      navigate('/login');
+    } catch (error) {
+      setLogoutError(error.message || 'Logout failed. Please try again.');
+    }
+  }
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [activeCategory, setActiveCategory] = useState('All Events');
 
@@ -269,23 +286,51 @@ const Landing = () => {
                 <span>Find events</span>
               </div>
 
-              <Link
-                to="/login"
-                className="hidden text-sm text-gray-300 transition-colors hover:text-white sm:block"
-              >
-                Login
-              </Link>
-
-              <Link
-                to="/signup"
-                className="rounded-lg bg-purple-600 px-4 py-2.5 text-sm font-semibold text-white transition-all hover:bg-purple-500 hover:shadow-lg hover:shadow-purple-600/20"
-              >
-                Sign Up
-              </Link>
+              {user ? (
+                <>
+                  <Link
+                    to="/profile"
+                    className="hidden text-sm text-gray-300 transition-colors hover:text-white sm:block"
+                  >
+                    {user.name || 'Profile'}
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    className="rounded-lg border border-gray-700 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-gray-800"
+                  >
+                    Logout
+                  </button>
+                </>
+              ) : (
+                <>
+                  <Link
+                    to="/login"
+                    className="hidden text-sm text-gray-300 transition-colors hover:text-white sm:block"
+                  >
+                    Login
+                  </Link>
+                  <Link
+                    to="/signup"
+                    className="rounded-lg bg-purple-600 px-4 py-2.5 text-sm font-semibold text-white transition-all hover:bg-purple-500 hover:shadow-lg hover:shadow-purple-600/20"
+                  >
+                    Sign Up
+                  </Link>
+                </>
+              )}
             </div>
           </div>
         </div>
       </nav>
+
+      {logoutError && (
+        <p
+          role="alert"
+          className="bg-red-950/60 px-4 py-2 text-center text-sm text-red-300"
+        >
+          {logoutError}
+        </p>
+      )}
 
       <main>
         {/* Hero Carousel */}

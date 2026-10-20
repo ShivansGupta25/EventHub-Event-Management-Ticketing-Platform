@@ -1,151 +1,161 @@
 import { useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useNavigate, useSearchParams } from 'react-router';
 import AuthLayout, { PasswordVisibilityIcon } from './AuthLayout.jsx';
+import { api } from '../lib/api.js';
+import { useAuth } from '../auth/useAuth.js';
 
 const inputClassName =
-  'h-12 w-full rounded-lg border border-[#3A3348] bg-[#14141B] px-4 text-sm text-white outline-none transition-colors duration-200 placeholder:text-[#71717A] hover:border-[#5A4D70] focus-visible:border-[#8B5CF6] focus-visible:ring-2 focus-visible:ring-[#8B5CF6]/30 aria-invalid:border-[#F87171] aria-invalid:focus-visible:border-[#F87171] aria-invalid:focus-visible:ring-[#F87171]/20';
+  'h-12 w-full rounded-lg border border-[#3A3348] bg-[#14141B] px-4 text-sm text-white outline-none placeholder:text-[#71717A] focus-visible:border-[#8B5CF6]';
 
 function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [rememberMe, setRememberMe] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
   const [errors, setErrors] = useState({});
+  const [loading, setLoading] = useState(false);
 
-  function handleSubmit(event) {
-    event.preventDefault();
+  const { setUser } = useAuth();
+  const navigate = useNavigate();
+  const [params] = useSearchParams();
+
+  async function handleSubmit(e) {
+    e.preventDefault();
 
     const nextErrors = {};
-    const trimmedEmail = email.trim();
+    const cleanEmail = email.trim();
 
-    if (!trimmedEmail) {
-      nextErrors.email = 'Enter your email address.';
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+    if (!cleanEmail) nextErrors.email = 'Enter your email address.';
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
       nextErrors.email = 'Enter a valid email address.';
     }
 
-    if (!password) {
-      nextErrors.password = 'Enter your password.';
-    }
+    if (!password) nextErrors.password = 'Enter your password.';
 
     setErrors(nextErrors);
-  }
+    if (Object.keys(nextErrors).length) return;
 
-  function handleEmailChange(event) {
-    setEmail(event.target.value);
-    setErrors((currentErrors) => ({ ...currentErrors, email: undefined }));
-  }
+    setLoading(true);
 
-  function handlePasswordChange(event) {
-    setPassword(event.target.value);
-    setErrors((currentErrors) => ({ ...currentErrors, password: undefined }));
+    try {
+      const response = await api('/auth/login', {
+        method: 'POST',
+        body: { email: cleanEmail, password },
+      });
+
+      setUser(response.data);
+
+      const next = params.get('next');
+      navigate(next?.startsWith('/') && !next.startsWith('//') ? next : '/', {
+        replace: true,
+      });
+    } catch (error) {
+      setErrors({
+        password:
+          error.status === 401 ? 'Invalid email or password.' : undefined,
+        form:
+          error.status === 401 ? undefined : error.message || 'Login failed.',
+      });
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
     <AuthLayout
+      title="Welcome Back"
+      subtitle="Enter your email and password to access your account."
       footer={
         <>
-          Don&apos;t Have An Account?{' '}
-          <Link
-            className="font-semibold text-[#A78BFA] underline-offset-4 hover:text-white hover:underline focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#A78BFA]"
-            to="/signup"
-          >
-            Register Now.
-          </Link>
+          Don't Have An Account? <Link to="/signup">Register Now.</Link>
         </>
       }
-      subtitle="Enter your email and password to access your account."
-      title="Welcome Back"
     >
       <form className="space-y-5" noValidate onSubmit={handleSubmit}>
         <div className="space-y-2">
-          <label
-            className="block text-sm font-medium text-[#E4E4E7]"
-            htmlFor="login-email"
-          >
-            Email
-          </label>
+          <label htmlFor="login-email">Email</label>
           <input
-            autoComplete="email"
-            aria-describedby={errors.email ? 'login-email-error' : undefined}
-            aria-invalid={Boolean(errors.email)}
-            className={inputClassName}
             id="login-email"
-            name="email"
-            onChange={handleEmailChange}
-            placeholder="you@example.com"
+            className={inputClassName}
             type="email"
+            autoComplete="email"
+            placeholder="you@example.com"
             value={email}
+            onChange={(e) => {
+              setEmail(e.target.value);
+              setErrors((old) => ({
+                ...old,
+                email: undefined,
+                form: undefined,
+              }));
+            }}
+            aria-invalid={!!errors.email}
           />
           {errors.email && (
-            <p className="text-xs text-[#F87171]" id="login-email-error">
-              {errors.email}
-            </p>
+            <p className="text-xs text-red-400">{errors.email}</p>
           )}
         </div>
 
         <div className="space-y-2">
-          <label
-            className="block text-sm font-medium text-[#E4E4E7]"
-            htmlFor="login-password"
-          >
-            Password
-          </label>
+          <label htmlFor="login-password">Password</label>
           <div className="relative">
             <input
-              autoComplete="current-password"
-              aria-describedby={
-                errors.password ? 'login-password-error' : undefined
-              }
-              aria-invalid={Boolean(errors.password)}
-              className={`${inputClassName} pr-12`}
               id="login-password"
-              name="password"
-              onChange={handlePasswordChange}
-              placeholder="Enter your password"
+              className={`${inputClassName} pr-12`}
               type={showPassword ? 'text' : 'password'}
+              autoComplete="current-password"
+              placeholder="Enter your password"
               value={password}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                setErrors((old) => ({
+                  ...old,
+                  password: undefined,
+                  form: undefined,
+                }));
+              }}
+              aria-invalid={!!errors.password}
             />
             <button
-              aria-label={showPassword ? 'Hide password' : 'Show password'}
-              aria-pressed={showPassword}
-              className="absolute inset-y-0 right-0 grid w-12 place-items-center text-[#A1A1AA] transition-colors hover:text-[#A78BFA] focus-visible:rounded-r-lg focus-visible:outline-2 focus-visible:outline-offset-[-3px] focus-visible:outline-[#A78BFA]"
-              onClick={() => setShowPassword((visible) => !visible)}
               type="button"
+              className="absolute right-3 top-3"
+              onClick={() => setShowPassword(!showPassword)}
+              aria-label={showPassword ? 'Hide password' : 'Show password'}
             >
               <PasswordVisibilityIcon visible={showPassword} />
             </button>
           </div>
           {errors.password && (
-            <p className="text-xs text-[#F87171]" id="login-password-error">
-              {errors.password}
-            </p>
+            <p className="text-xs text-red-400">{errors.password}</p>
           )}
         </div>
 
-        <div className="flex items-center justify-between gap-4 pt-0.5">
-          <label className="inline-flex cursor-pointer items-center gap-2.5 text-sm text-[#A1A1AA]">
+        {errors.form && (
+          <p role="alert" className="text-xs text-red-400">
+            {errors.form}
+          </p>
+        )}
+
+        <div className="flex items-center justify-between gap-3">
+          <label className="flex items-center gap-2 text-sm text-gray-400">
             <input
-              checked={rememberMe}
-              className="size-4 cursor-pointer rounded border-[#2A2635] accent-[#8B5CF6] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#A78BFA]"
-              onChange={(event) => setRememberMe(event.target.checked)}
               type="checkbox"
+              checked={rememberMe}
+              onChange={(e) => setRememberMe(e.target.checked)}
             />
-            <span>Remember Me</span>
+            Remember Me
           </label>
-          <a
-            className="text-sm font-medium text-[#A78BFA] underline-offset-4 hover:text-white hover:underline focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#A78BFA]"
-            href="#forgot-password"
-          >
-            Forgot Your Password?
+          <a href="#forgot-password" className="text-sm text-purple-400">
+            Forgot Password?
           </a>
         </div>
 
         <button
-          className="flex h-12 w-full items-center justify-center rounded-lg border border-[#A78BFA]/30 bg-[#8B5CF6] text-sm font-semibold text-white shadow-[0_6px_22px_rgba(139,92,246,0.18)] transition-all duration-200 hover:border-[#C4B5FD]/60 hover:bg-[#7C3AED] hover:shadow-[0_8px_24px_rgba(139,92,246,0.28)] active:translate-y-px focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-[#A78BFA] motion-reduce:transition-none"
           type="submit"
+          disabled={loading}
+          className="h-12 w-full rounded-lg bg-[#8B5CF6] font-semibold text-white disabled:opacity-60"
         >
-          Log In
+          {loading ? 'Logging In...' : 'Log In'}
         </button>
       </form>
     </AuthLayout>

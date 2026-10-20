@@ -1,6 +1,8 @@
 import { useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import AuthLayout, { PasswordVisibilityIcon } from './AuthLayout.jsx';
+import { api } from '../lib/api.js';
+import { useAuth } from '../auth/useAuth.js';
 
 const inputClassName =
   'h-10 w-full rounded-lg border border-[#3A3348] bg-[#14141B] px-4 text-sm text-white outline-none transition-colors duration-200 placeholder:text-[#71717A] hover:border-[#5A4D70] focus-visible:border-[#8B5CF6] focus-visible:ring-2 focus-visible:ring-[#8B5CF6]/30 aria-invalid:border-[#F87171] aria-invalid:focus-visible:border-[#F87171] aria-invalid:focus-visible:ring-[#F87171]/20';
@@ -12,6 +14,8 @@ function validateForm(values) {
 
   if (!trimmedName) {
     nextErrors.fullName = 'Enter your full name.';
+  } else if (trimmedName.length > 100) {
+    nextErrors.fullName = 'Name must be 100 characters or fewer.';
   }
 
   if (!trimmedEmail) {
@@ -24,6 +28,8 @@ function validateForm(values) {
     nextErrors.password = 'Create a password.';
   } else if (values.password.length < 8) {
     nextErrors.password = 'Use at least 8 characters.';
+  } else if (values.password.length > 72) {
+    nextErrors.password = 'Password must be 72 characters or fewer.';
   }
 
   if (!values.confirmPassword) {
@@ -40,6 +46,9 @@ function validateForm(values) {
 }
 
 function Signup() {
+  const navigate = useNavigate();
+  const { setUser } = useAuth();
+
   const [formValues, setFormValues] = useState({
     fullName: '',
     email: '',
@@ -47,14 +56,17 @@ function Signup() {
     confirmPassword: '',
     acceptTerms: false,
   });
+
   const [errors, setErrors] = useState({});
   const [hasSubmitted, setHasSubmitted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
 
   function handleChange(event) {
     const { checked, name, type, value } = event.target;
+
     const nextValues = {
       ...formValues,
       [name]: type === 'checkbox' ? checked : value,
@@ -68,19 +80,63 @@ function Signup() {
     }
   }
 
-  function handleSubmit(event) {
+  async function handleSubmit(event) {
     event.preventDefault();
     setHasSubmitted(true);
+    setStatusMessage('');
 
     const nextErrors = validateForm(formValues);
     setErrors(nextErrors);
 
-    if (Object.keys(nextErrors).length === 0) {
+    if (Object.keys(nextErrors).length > 0) {
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const result = await api('/auth/register', {
+        method: 'POST',
+        body: {
+          name: formValues.fullName.trim(),
+          email: formValues.email.trim(),
+          password: formValues.password,
+        },
+      });
+
+      // Support either { data: user } or a directly returned user object.
+      const user = result?.data ?? result;
+
+      setUser(user);
+      navigate('/');
+    } catch (error) {
+      const fieldErrors = error?.fields ?? {};
+      const mappedErrors = {};
+
+      if (fieldErrors.name) {
+        mappedErrors.fullName = fieldErrors.name;
+      }
+
+      if (fieldErrors.email) {
+        mappedErrors.email = fieldErrors.email;
+      }
+
+      if (fieldErrors.password) {
+        mappedErrors.password = fieldErrors.password;
+      }
+
+      setErrors((currentErrors) => ({
+        ...currentErrors,
+        ...mappedErrors,
+      }));
+
       setStatusMessage(
-        'Your details are valid. Account creation requires backend authentication.'
+        Object.keys(mappedErrors).length > 0
+          ? ''
+          : error?.message || 'Account creation failed. Please try again.'
       );
-    } else {
-      setStatusMessage('');
+    } finally {
+      setIsSubmitting(false);
     }
   }
 
@@ -108,6 +164,7 @@ function Signup() {
           >
             Full Name
           </label>
+
           <input
             autoComplete="name"
             aria-describedby={errors.fullName ? 'signup-name-error' : undefined}
@@ -120,6 +177,7 @@ function Signup() {
             type="text"
             value={formValues.fullName}
           />
+
           {errors.fullName && (
             <p className="text-xs text-[#F87171]" id="signup-name-error">
               {errors.fullName}
@@ -134,6 +192,7 @@ function Signup() {
           >
             Email
           </label>
+
           <input
             autoComplete="email"
             aria-describedby={errors.email ? 'signup-email-error' : undefined}
@@ -146,6 +205,7 @@ function Signup() {
             type="email"
             value={formValues.email}
           />
+
           {errors.email && (
             <p className="text-xs text-[#F87171]" id="signup-email-error">
               {errors.email}
@@ -160,6 +220,7 @@ function Signup() {
           >
             Password
           </label>
+
           <div className="relative">
             <input
               autoComplete="new-password"
@@ -175,6 +236,7 @@ function Signup() {
               type={showPassword ? 'text' : 'password'}
               value={formValues.password}
             />
+
             <button
               aria-label={showPassword ? 'Hide password' : 'Show password'}
               aria-pressed={showPassword}
@@ -185,6 +247,7 @@ function Signup() {
               <PasswordVisibilityIcon visible={showPassword} />
             </button>
           </div>
+
           {errors.password && (
             <p className="text-xs text-[#F87171]" id="signup-password-error">
               {errors.password}
@@ -199,6 +262,7 @@ function Signup() {
           >
             Confirm Password
           </label>
+
           <div className="relative">
             <input
               autoComplete="new-password"
@@ -216,6 +280,7 @@ function Signup() {
               type={showConfirmPassword ? 'text' : 'password'}
               value={formValues.confirmPassword}
             />
+
             <button
               aria-label={
                 showConfirmPassword ? 'Hide password' : 'Show password'
@@ -228,6 +293,7 @@ function Signup() {
               <PasswordVisibilityIcon visible={showConfirmPassword} />
             </button>
           </div>
+
           {errors.confirmPassword && (
             <p
               className="text-xs text-[#F87171]"
@@ -255,6 +321,7 @@ function Signup() {
               onChange={handleChange}
               type="checkbox"
             />
+
             <span>
               I agree to the{' '}
               <a
@@ -273,6 +340,7 @@ function Signup() {
               .
             </span>
           </label>
+
           {errors.acceptTerms && (
             <p
               className="pl-[26px] text-xs text-[#F87171]"
@@ -284,17 +352,18 @@ function Signup() {
         </div>
 
         <button
-          className="flex h-11 w-full items-center justify-center rounded-lg border border-[#A78BFA]/30 bg-[#8B5CF6] text-sm font-semibold text-white shadow-[0_6px_22px_rgba(139,92,246,0.18)] transition-all duration-200 hover:border-[#C4B5FD]/60 hover:bg-[#7C3AED] hover:shadow-[0_8px_24px_rgba(139,92,246,0.28)] active:translate-y-px focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-[#A78BFA] motion-reduce:transition-none"
+          className="flex h-11 w-full items-center justify-center rounded-lg border border-[#A78BFA]/30 bg-[#8B5CF6] text-sm font-semibold text-white shadow-[0_6px_22px_rgba(139,92,246,0.18)] transition-all duration-200 hover:border-[#C4B5FD]/60 hover:bg-[#7C3AED] hover:shadow-[0_8px_24px_rgba(139,92,246,0.28)] active:translate-y-px focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-[#A78BFA] motion-reduce:transition-none disabled:cursor-not-allowed disabled:opacity-60"
+          disabled={isSubmitting}
           type="submit"
         >
-          Create Account
+          {isSubmitting ? 'Creating Account...' : 'Create Account'}
         </button>
 
         {statusMessage && (
           <p
             aria-live="polite"
-            className="text-center text-xs leading-5 text-[#A78BFA]"
-            role="status"
+            className="text-center text-xs leading-5 text-[#F87171]"
+            role="alert"
           >
             {statusMessage}
           </p>
