@@ -5,7 +5,6 @@ import {
   refreshSession,
 } from '../services/auth.service.js';
 import { prisma } from '../db.js';
-import { HttpError } from '../lib/errors.js';
 
 const cookieOptions = {
   httpOnly: true,
@@ -50,7 +49,7 @@ export async function refresh(req, res) {
   try {
     return sendSession(res, await refreshSession(req.cookies?.refreshToken));
   } catch (error) {
-    if (error.statusCode === 401 || error.status === 401) {
+    if (error.status === 401 || error.statusCode === 401) {
       clearSessionCookies(res);
     }
     throw error;
@@ -66,21 +65,19 @@ export async function logout(req, res) {
 
   if (token) {
     const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
-
-    await prisma.refreshToken.updateMany({
-      where: {
-        tokenHash,
-        revokedAt: null,
-      },
-      data: {
-        revokedAt: new Date(),
-      },
+    const stored = await prisma.refreshToken.findUnique({
+      where: { tokenHash },
+      select: { familyId: true },
     });
+
+    if (stored) {
+      await prisma.refreshToken.updateMany({
+        where: { familyId: stored.familyId, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+    }
   }
 
   clearSessionCookies(res);
-
-  return res
-    .status(200)
-    .json({ data: { message: 'Logged out successfully.' } });
+  return res.status(204).end();
 }
