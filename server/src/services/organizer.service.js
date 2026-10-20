@@ -277,3 +277,132 @@ export async function publishOrganizerEvent(eventId, organizerId) {
     data: { status: 'PUBLISHED' },
   });
 }
+
+export async function checkInOrganizerTicket(eventId, organizerId, body) {
+  validateEventId(eventId);
+  validateBody(body);
+
+  const ticketCode =
+    typeof body.ticketCode === 'string' ? body.ticketCode.trim() : '';
+
+  if (ticketCode === '' || ticketCode.length > 64) {
+    invalidInput('Please provide a valid ticket code.', {
+      ticketCode: 'Must be a non-empty string of at most 64 characters.',
+    });
+  }
+
+  return prisma.$transaction(async (tx) => {
+    const lockedEvents = await tx.$queryRaw`
+      SELECT "id"
+      FROM "Event"
+      WHERE "id" = ${eventId}::uuid
+      FOR UPDATE
+    `;
+
+    if (lockedEvents.length === 0) {
+      throw new HttpError(
+        404,
+        'EVENT_UNAVAILABLE',
+        'Event not found or unavailable.'
+      );
+    }
+
+    const event = await tx.event.findFirst({
+      where: { id: eventId, organizerId },
+      select: {
+        id: true,
+        startAt: true,
+        endAt: true,
+        status: true,
+        hiddenAt: true,
+      },
+    });
+
+    if (!event) {
+      throw new HttpError(
+        404,
+        'EVENT_UNAVAILABLE',
+        'Event not found or unavailable.'
+      );
+    }
+
+    const lockedBookings = await tx.$queryRaw`
+      SELECT "id"
+      FROM "Booking"
+      WHERE "ticketCode" = ${ticketCode}
+        AND "eventId" = ${eventId}::uuid
+      FOR UPDATE
+    `;
+
+    if (lockedBookings.length === 0) {
+      throw new HttpError(
+        404,
+        'TICKET_NOT_FOUND',
+        'Ticket not found for this event.'
+      );
+    }
+
+    const booking = await tx.booking.findFirst({
+      where: { ticketCode, eventId },
+      select: { id: true, status: true, checkedInAt: true },
+    });
+
+    if (!booking) {
+      throw new HttpError(
+        404,
+        'TICKET_NOT_FOUND',
+        'Ticket not found for this event.'
+      );
+    }
+
+    if (booking.status !== 'CONFIRMED') {
+      throw new HttpError(
+        409,
+        'TICKET_NOT_CONFIRMED',
+        'Only confirmed tickets can be checked in.'
+      );
+    }
+
+    if (booking.checkedInAt) {
+      return {
+        checkedInAt: booking.checkedInAt,
+        alreadyCheckedIn: true,
+      };
+    }
+
+    if (event.status === 'CANCELLED') {
+      throw new HttpError(
+        409,
+        'EVENT_UNAVAILABLE',
+        'This event has been cancelled.'
+      );
+    }
+
+    if (event.status !== 'PUBLISHED' || event.hiddenAt) {
+      throw new HttpError(
+        404,
+        'EVENT_UNAVAILABLE',
+        'Event not found or unavailable.'
+      );
+    }
+
+    const now = new Date();
+    const checkInOpensAt = new Date(event.startAt.getTime() - 60 * 60 * 1000);
+
+    if (now < checkInOpensAt || now > event.endAt) {
+      throw new HttpError(
+        409,
+        'CHECK_IN_CLOSED',
+        'Check-in is available from one hour before the event until it ends.'
+      );
+    }
+
+    const checkedInAt = now;
+    await tx.booking.update({
+      where: { id: booking.id },
+      data: { checkedInAt },
+    });
+
+    return { checkedInAt, alreadyCheckedIn: false };
+  });
+}

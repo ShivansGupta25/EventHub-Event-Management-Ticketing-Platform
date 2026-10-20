@@ -23,25 +23,14 @@ test('booking endpoint rejects unauthenticated requests', async (t) => {
   const response = await fetch(`${baseUrl}/api/events/not-a-uuid/bookings`, {
     method: 'POST',
   });
-  const authenticatedInvalidIdResponse = await fetch(
-    `${baseUrl}/api/events/not-a-uuid/bookings`,
-    {
-      method: 'POST',
-      headers: {
-        cookie: `accessToken=${jwt.sign(
-          { id: randomUUID() },
-          process.env.JWT_ACCESS_SECRET
-        )}`,
-      },
-    }
-  );
-
   assert.equal(response.status, 401);
   assert.deepEqual(await response.json(), {
-    success: false,
-    message: 'Authentication required.',
+    error: {
+      code: 'UNAUTHENTICATED',
+      message: 'Please log in.',
+      fields: {},
+    },
   });
-  assert.equal(authenticatedInvalidIdResponse.status, 400);
 });
 
 test(
@@ -132,6 +121,22 @@ test(
         body: JSON.stringify(body),
       });
     }
+
+    await t.test(
+      'rejects an invalid event ID after authenticating an existing user',
+      async () => {
+        const response = await book('not-a-uuid', attendee.id);
+
+        assert.equal(response.status, 404);
+        assert.deepEqual(await response.json(), {
+          error: {
+            code: 'EVENT_UNAVAILABLE',
+            message: 'Event not found or unavailable.',
+            fields: {},
+          },
+        });
+      }
+    );
 
     await t.test(
       'books an available event and returns the existing ticket on retry',

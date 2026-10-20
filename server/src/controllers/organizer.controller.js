@@ -2,6 +2,7 @@ import {
   createOrganizerEvent,
   updateOrganizerEvent,
   publishOrganizerEvent,
+  checkInOrganizerTicket,
 } from '../services/organizer.service.js';
 
 export async function createEvent(req, res) {
@@ -29,5 +30,17 @@ export async function publishEvent(req, res) {
 
   return res.status(200).json({
     data: event,
+  });
+}
+
+export async function checkInTicket(req, res) {
+  const result = await checkInOrganizerTicket(
+    req.params.eventId,
+    req.user.id,
+    req.body
+  );
+
+  return res.status(200).json({
+    data: result,
   });
 }
