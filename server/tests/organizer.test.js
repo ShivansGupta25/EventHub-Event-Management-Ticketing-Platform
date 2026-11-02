@@ -568,16 +568,30 @@ test(
     }
 
     await t.test(
-      'rejects invalid event capacity and date relationships with 400',
+      'rejects invalid event capacity, price, timezone, and date values with 400',
       async () => {
         for (const body of [
           eventInput({ capacity: 0 }),
+          eventInput({ capacity: 2147483648 }),
+          eventInput({ capacity: 1.5 }),
+
+          eventInput({ priceMinor: -1 }),
+          eventInput({ priceMinor: 1.5 }),
+          eventInput({ priceMinor: 2147483648 }),
+
+          eventInput({ timezone: 'Invalid/Timezone' }),
+
+          eventInput({
+            startAt: '2026-11-03T12:00:00',
+          }),
+
           eventInput({
             endAt: new Date(
               Date.now() + 24 * 60 * 60 * 1000 - 60 * 1000
             ).toISOString(),
             startAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
           }),
+
           eventInput({
             registrationClosesAt: new Date(
               Date.now() + 25 * 60 * 60 * 1000
@@ -588,9 +602,42 @@ test(
             method: 'POST',
             body,
           });
+
           assert.equal(response.status, 400);
           assert.equal((await response.json()).error.code, 'VALIDATION_ERROR');
         }
+      }
+    );
+
+    await t.test(
+      'accepts registration deadline equal to event start and preserves 29 minor units',
+      async () => {
+        const startAt = new Date(
+          Date.now() + 24 * 60 * 60 * 1000
+        ).toISOString();
+
+        const input = eventInput({
+          startAt,
+          registrationClosesAt: startAt,
+          priceMinor: 29,
+        });
+
+        const response = await request('/api/organizer/events', {
+          method: 'POST',
+          body: input,
+        });
+
+        const body = await response.json();
+
+        assert.equal(response.status, 201);
+        assert.equal(body.data.priceMinor, 29);
+
+        assert.equal(
+          new Date(body.data.registrationClosesAt).getTime(),
+          new Date(body.data.startAt).getTime()
+        );
+
+        createdEventIds.push(body.data.id);
       }
     );
 

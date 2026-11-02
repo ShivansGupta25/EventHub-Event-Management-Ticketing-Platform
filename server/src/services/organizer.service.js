@@ -71,9 +71,12 @@ function validateBody(body) {
 }
 
 function parseDate(value, field) {
-  if (typeof value !== 'string' || value.trim() === '') {
+  const hasTimezone =
+    typeof value === 'string' && /(?:Z|[+-]\d{2}:\d{2})$/i.test(value);
+
+  if (typeof value !== 'string' || value.trim() === '' || !hasTimezone) {
     invalidInput(`Invalid ${field}.`, {
-      [field]: 'A valid date is required.',
+      [field]: 'A valid date with an explicit timezone is required.',
     });
   }
 
@@ -86,6 +89,18 @@ function parseDate(value, field) {
   }
 
   return date;
+}
+
+function isValidTimeZone(value) {
+  try {
+    new Intl.DateTimeFormat('en-US', {
+      timeZone: value,
+    });
+
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function validateEventFields(body, { partial = false } = {}) {
@@ -124,6 +139,11 @@ function validateEventFields(body, { partial = false } = {}) {
         continue;
       }
 
+      if (field === 'timezone' && !isValidTimeZone(normalized)) {
+        errors[field] = 'Enter a valid IANA timezone.';
+        continue;
+      }
+
       cleaned[field] = normalized;
       continue;
     }
@@ -149,8 +169,8 @@ function validateEventFields(body, { partial = false } = {}) {
     }
 
     if (field === 'capacity') {
-      if (!Number.isInteger(value) || value < 1) {
-        errors[field] = 'Must be a positive integer.';
+      if (!Number.isInteger(value) || value < 1 || value > 2147483647) {
+        errors[field] = 'Must be a positive integer within the allowed limit.';
       } else {
         cleaned[field] = value;
       }
@@ -159,8 +179,9 @@ function validateEventFields(body, { partial = false } = {}) {
     }
 
     if (field === 'priceMinor') {
-      if (!Number.isInteger(value) || value < 0) {
-        errors[field] = 'Must be a non-negative integer.';
+      if (!Number.isInteger(value) || value < 0 || value > 2147483647) {
+        errors[field] =
+          'Must be a non-negative integer within the allowed limit.';
       } else {
         cleaned[field] = value;
       }
@@ -184,10 +205,10 @@ function validateEventDates(event) {
   if (
     event.registrationClosesAt &&
     event.startAt &&
-    event.registrationClosesAt >= event.startAt
+    event.registrationClosesAt > event.startAt
   ) {
     errors.registrationClosesAt =
-      'Registration must close before the event starts.';
+      'Registration deadline cannot be after the event starts.';
   }
 
   if (Object.keys(errors).length > 0) {
@@ -361,17 +382,23 @@ export async function publishOrganizerEvent(eventId, organizerId) {
     errors.endAt = 'The event end date must be after the start date.';
   }
 
-  if (event.registrationClosesAt >= event.startAt) {
+  if (event.registrationClosesAt > event.startAt) {
     errors.registrationClosesAt =
-      'Registration must close before the event starts.';
+      'Registration deadline cannot be after the event starts.';
   }
 
-  if (event.capacity < 1) {
-    errors.capacity = 'Capacity must be greater than zero.';
+  if (event.capacity < 1 || event.capacity > 2147483647) {
+    errors.capacity =
+      'Capacity must be a positive integer within the allowed limit.';
   }
 
-  if (event.priceMinor < 0) {
-    errors.priceMinor = 'Price must be zero or greater.';
+  if (
+    !Number.isInteger(event.priceMinor) ||
+    event.priceMinor < 0 ||
+    event.priceMinor > 2147483647
+  ) {
+    errors.priceMinor =
+      'Price must be a non-negative integer within the allowed limit.';
   }
 
   if (Object.keys(errors).length > 0) {

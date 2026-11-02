@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { ArrowLeft, CalendarDays, Save } from 'lucide-react';
 import { api } from '../lib/api.js';
@@ -39,7 +39,41 @@ function toLocalInput(value) {
   return local.toISOString().slice(0, 16);
 }
 
-function toPayload(form) {
+function parsePriceMinor(value) {
+  const normalized = value.trim();
+
+  if (!/^\d+(?:\.\d{1,2})?$/.test(normalized)) {
+    return null;
+  }
+
+  const [whole, fraction = ''] = normalized.split('.');
+  const minor = Number(whole) * 100 + Number((fraction + '00').slice(0, 2));
+
+  if (!Number.isSafeInteger(minor) || minor > 2147483647) {
+    return null;
+  }
+
+  return minor;
+}
+
+function toPayload(form, originalDates = {}) {
+  function getDateValue(field) {
+    const original = originalDates[field];
+
+    // Preserve the exact original timestamp if the date was not edited.
+    if (original && original.localValue === form[field]) {
+      return original.isoValue;
+    }
+
+    const date = new Date(form[field]);
+
+    if (Number.isNaN(date.getTime())) {
+      throw new Error(`Invalid ${field}.`);
+    }
+
+    return date.toISOString();
+  }
+
   return {
     title: form.title.trim(),
     description: form.description.trim(),
@@ -48,11 +82,11 @@ function toPayload(form) {
     address: form.address.trim(),
     city: form.city.trim(),
     timezone: form.timezone.trim(),
-    startAt: new Date(form.startAt).toISOString(),
-    endAt: new Date(form.endAt).toISOString(),
-    registrationClosesAt: new Date(form.registrationClosesAt).toISOString(),
+    startAt: getDateValue('startAt'),
+    endAt: getDateValue('endAt'),
+    registrationClosesAt: getDateValue('registrationClosesAt'),
     capacity: Number(form.capacity),
-    priceMinor: Math.round(Number(form.price) * 100),
+    priceMinor: parsePriceMinor(form.price),
     currency: form.currency.trim().toUpperCase(),
   };
 }
@@ -61,6 +95,7 @@ function OrganizerEventForm() {
   const { eventId } = useParams();
   const navigate = useNavigate();
   const editing = Boolean(eventId);
+  const originalDates = useRef({});
 
   const [form, setForm] = useState(initialForm);
   const [loading, setLoading] = useState(editing);
@@ -81,6 +116,17 @@ function OrganizerEventForm() {
       try {
         const result = await api(`/organizer/events/${eventId}`);
         const event = result.data;
+        const dateFields = ['startAt', 'endAt', 'registrationClosesAt'];
+
+        originalDates.current = Object.fromEntries(
+          dateFields.map((field) => [
+            field,
+            {
+              localValue: toLocalInput(event[field]),
+              isoValue: event[field],
+            },
+          ])
+        );
 
         if (!active) return;
 
@@ -141,37 +187,64 @@ function OrganizerEventForm() {
       errors.registrationClosesAt = 'Registration deadline is required.';
     }
 
-    const start = new Date(form.startAt);
-    const end = new Date(form.endAt);
-    const deadline = new Date(form.registrationClosesAt);
+    const start = form.startAt ? new Date(form.startAt) : null;
+    const end = form.endAt ? new Date(form.endAt) : null;
+    const deadline = form.registrationClosesAt
+      ? new Date(form.registrationClosesAt)
+      : null;
 
-    if (form.startAt && form.endAt && end <= start) {
+    if (start && Number.isNaN(start.getTime())) {
+      errors.startAt = 'Enter a valid start date.';
+    }
+
+    if (end && Number.isNaN(end.getTime())) {
+      errors.endAt = 'Enter a valid end date.';
+    }
+
+    if (deadline && Number.isNaN(deadline.getTime())) {
+      errors.registrationClosesAt = 'Enter a valid registration deadline.';
+    }
+
+    if (
+      start &&
+      end &&
+      !Number.isNaN(start.getTime()) &&
+      !Number.isNaN(end.getTime()) &&
+      end <= start
+    ) {
       errors.endAt = 'End date must be after start date.';
     }
 
-    if (form.startAt && form.registrationClosesAt && deadline >= start) {
+    if (
+      start &&
+      deadline &&
+      !Number.isNaN(start.getTime()) &&
+      !Number.isNaN(deadline.getTime()) &&
+      deadline > start
+    ) {
       errors.registrationClosesAt =
-        'Registration must close before the event starts.';
+        'Registration deadline cannot be after the event starts.';
     }
 
-    if (form.startAt && !editing && start <= new Date()) {
+    if (
+      start &&
+      !Number.isNaN(start.getTime()) &&
+      !editing &&
+      start <= new Date()
+    ) {
       errors.startAt = 'Choose a future start date.';
     }
 
-    if (
-      form.capacity.trim() === '' ||
-      !Number.isInteger(Number(form.capacity)) ||
-      Number(form.capacity) < 1
-    ) {
-      errors.capacity = 'Capacity must be a positive integer.';
+    const capacity = Number(form.capacity);
+
+    if (!Number.isInteger(capacity) || capacity < 1 || capacity > 2147483647) {
+      errors.capacity =
+        'Capacity must be a positive integer within the allowed limit.';
     }
 
-    if (
-      form.price.trim() === '' ||
-      !Number.isFinite(Number(form.price)) ||
-      Number(form.price) < 0 ||
-      !Number.isSafeInteger(Number(form.price) * 100)
-    ) {
+    const priceMinor = parsePriceMinor(form.price);
+
+    if (priceMinor === null) {
       errors.price =
         'Enter a valid non-negative price with at most two decimal places.';
     }
@@ -201,7 +274,7 @@ function OrganizerEventForm() {
     setSaving(true);
 
     try {
-      const payload = toPayload(form);
+      const payload = toPayload(form, originalDates.current);
       let savedEvent;
 
       if (editing) {
@@ -236,7 +309,12 @@ function OrganizerEventForm() {
       });
     } catch (err) {
       setError(err.message || 'Unable to save this event.');
-      setFieldErrors(err.fields ?? {});
+      const serverErrors = err.fields ?? {};
+
+      setFieldErrors({
+        ...serverErrors,
+        ...(serverErrors.priceMinor ? { price: serverErrors.priceMinor } : {}),
+      });
     } finally {
       setSaving(false);
     }
@@ -323,15 +401,23 @@ function OrganizerEventForm() {
                 <label key={name} className="block text-sm text-gray-300">
                   {label}
                   <input
+                    id={name}
                     name={name}
                     type={type}
                     value={form[name]}
                     onChange={updateField}
                     maxLength={name === 'title' ? 150 : undefined}
+                    aria-invalid={Boolean(fieldErrors[name])}
+                    aria-describedby={
+                      fieldErrors[name] ? `${name}-error` : undefined
+                    }
                     className={inputClass(name)}
                   />
                   {fieldErrors[name] && (
-                    <span className="mt-1 block text-xs text-red-400">
+                    <span
+                      id={`${name}-error`}
+                      className="mt-1 block text-xs text-red-400"
+                    >
                       {fieldErrors[name]}
                     </span>
                   )}
@@ -341,15 +427,23 @@ function OrganizerEventForm() {
               <label className="block text-sm text-gray-300 sm:col-span-2">
                 Description
                 <textarea
+                  id="description"
                   name="description"
                   value={form.description}
                   onChange={updateField}
                   maxLength={5000}
                   rows={5}
+                  aria-invalid={Boolean(fieldErrors.description)}
+                  aria-describedby={
+                    fieldErrors.description ? 'description-error' : undefined
+                  }
                   className={inputClass('description')}
                 />
                 {fieldErrors.description && (
-                  <span className="mt-1 block text-xs text-red-400">
+                  <span
+                    id="description-error"
+                    className="mt-1 block text-xs text-red-400"
+                  >
                     {fieldErrors.description}
                   </span>
                 )}
@@ -359,6 +453,10 @@ function OrganizerEventForm() {
 
           <section>
             <h2 className="mb-5 text-lg font-semibold">Schedule</h2>
+            <p className="mb-4 text-xs text-gray-500">
+              Dates and times are entered in your browser's local timezone. The
+              selected event timezone is stored separately.
+            </p>
 
             <div className="grid gap-5 sm:grid-cols-2">
               {[
@@ -369,14 +467,22 @@ function OrganizerEventForm() {
                 <label key={name} className="block text-sm text-gray-300">
                   {label}
                   <input
+                    id={name}
                     type="datetime-local"
                     name={name}
                     value={form[name]}
                     onChange={updateField}
+                    aria-invalid={Boolean(fieldErrors[name])}
+                    aria-describedby={
+                      fieldErrors[name] ? `${name}-error` : undefined
+                    }
                     className={inputClass(name)}
                   />
                   {fieldErrors[name] && (
-                    <span className="mt-1 block text-xs text-red-400">
+                    <span
+                      id={`${name}-error`}
+                      className="mt-1 block text-xs text-red-400"
+                    >
                       {fieldErrors[name]}
                     </span>
                   )}
@@ -392,16 +498,24 @@ function OrganizerEventForm() {
               <label className="block text-sm text-gray-300">
                 Capacity
                 <input
+                  id="capacity"
                   type="number"
                   min="1"
                   step="1"
                   name="capacity"
                   value={form.capacity}
                   onChange={updateField}
+                  aria-invalid={Boolean(fieldErrors.capacity)}
+                  aria-describedby={
+                    fieldErrors.capacity ? 'capacity-error' : undefined
+                  }
                   className={inputClass('capacity')}
                 />
                 {fieldErrors.capacity && (
-                  <span className="mt-1 block text-xs text-red-400">
+                  <span
+                    id="capacity-error"
+                    className="mt-1 block text-xs text-red-400"
+                  >
                     {fieldErrors.capacity}
                   </span>
                 )}
@@ -410,16 +524,23 @@ function OrganizerEventForm() {
               <label className="block text-sm text-gray-300">
                 Ticket price
                 <input
-                  type="number"
-                  min="0"
-                  step="0.01"
+                  id="price"
+                  type="text"
+                  inputMode="decimal"
                   name="price"
                   value={form.price}
                   onChange={updateField}
+                  aria-invalid={Boolean(fieldErrors.price)}
+                  aria-describedby={
+                    fieldErrors.price ? 'price-error' : undefined
+                  }
                   className={inputClass('price')}
                 />
                 {fieldErrors.price && (
-                  <span className="mt-1 block text-xs text-red-400">
+                  <span
+                    id="price-error"
+                    className="mt-1 block text-xs text-red-400"
+                  >
                     {fieldErrors.price}
                   </span>
                 )}
@@ -428,14 +549,22 @@ function OrganizerEventForm() {
               <label className="block text-sm text-gray-300">
                 Currency
                 <input
+                  id="currency"
                   name="currency"
                   maxLength={3}
                   value={form.currency}
                   onChange={updateField}
+                  aria-invalid={Boolean(fieldErrors.currency)}
+                  aria-describedby={
+                    fieldErrors.currency ? 'currency-error' : undefined
+                  }
                   className={inputClass('currency')}
                 />
                 {fieldErrors.currency && (
-                  <span className="mt-1 block text-xs text-red-400">
+                  <span
+                    id="currency-error"
+                    className="mt-1 block text-xs text-red-400"
+                  >
                     {fieldErrors.currency}
                   </span>
                 )}
